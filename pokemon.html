@@ -689,20 +689,32 @@
                 }
             });
 
-            // Cloud MQTT Connection (EMQX / HiveMQ WebSockets)
+            // Cloud MQTT Connection (EMQX WebSockets)
             if (typeof mqtt !== 'undefined') {
                 try {
                     mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-                        clientId: 'poke_' + myClientId,
+                        clientId: 'poke_' + myClientId + '_' + Math.random().toString(36).substring(2, 6),
                         clean: true,
-                        connectTimeout: 5000,
+                        connectTimeout: 7000,
                         reconnectPeriod: 2500
                     });
 
                     mqttClient.on('connect', () => {
                         isMqttConnected = true;
-                        // Subscribe to the retained room state topic
+                        // Subscribe to the retained room state topic & peer requests topic
                         mqttClient.subscribe(mqttTopic + '/state', { qos: 1 });
+                        mqttClient.subscribe(mqttTopic + '/requests', { qos: 0 });
+
+                        // Request current room state from any active peer in this room
+                        mqttClient.publish(mqttTopic + '/requests', JSON.stringify({
+                            type: 'REQUEST_ROOM_STATE',
+                            from: myClientId
+                        }));
+
+                        // If we already have a currentLot (e.g. from localStorage), broadcast it to help peers
+                        if (roomState.currentLot) {
+                            publishState();
+                        }
                         updateOnlineBadge();
                     });
 
@@ -719,7 +731,14 @@
                     mqttClient.on('message', (topic, payload) => {
                         try {
                             const data = JSON.parse(payload.toString());
-                            if (data && data.currentLot) {
+                            if (topic.endsWith('/requests')) {
+                                if (data && data.type === 'REQUEST_ROOM_STATE' && data.from !== myClientId) {
+                                    // A peer just joined and needs the room state!
+                                    if (roomState.currentLot) {
+                                        publishState();
+                                    }
+                                }
+                            } else if (data && data.currentLot) {
                                 hasReceivedCloudState = true;
                                 applyIncomingState(data);
                             }
@@ -1312,14 +1331,22 @@
             initRealtimeSync();
             await loadAllPokemonIndex();
 
-            // Give MQTT retained message and BroadcastChannel 350ms to arrive from cloud
-            setTimeout(async () => {
-                if (!roomState.currentLot && !hasReceivedCloudState) {
-                    await nextAuctionLot();
-                } else {
+            // Give MQTT retained message and peer response up to 2.4s to arrive before creating new lot
+            let checks = 0;
+            const waitInterval = setInterval(async () => {
+                checks++;
+                if (hasReceivedCloudState || roomState.currentLot) {
+                    clearInterval(waitInterval);
                     renderUI();
+                } else if (checks >= 12) {
+                    clearInterval(waitInterval);
+                    if (!roomState.currentLot && !hasReceivedCloudState) {
+                        await nextAuctionLot();
+                    } else {
+                        renderUI();
+                    }
                 }
-            }, 350);
+            }, 200);
         };
     </script>
 </body>
