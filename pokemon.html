@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokémon Blind Auction - Online Room</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MQTT.js for Real-time Cloud Sync -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.5.0/mqtt.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Kanit & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Kanit:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: #07050a;
+            color: #f8fafc;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stage-backdrop {
+            background:
+                radial-gradient(ellipse at 50% 82%, rgba(148, 163, 184, 0.22) 0%, rgba(15, 23, 42, 0) 55%),
+                radial-gradient(circle at 50% 25%, rgba(153, 27, 27, 0.45) 0%, rgba(17, 12, 24, 0.98) 70%);
+        }
+
+        .move-pill {
+            background: rgba(100, 116, 139, 0.65);
+            border: 1px solid rgba(226, 232, 240, 0.35);
+            backdrop-filter: blur(4px);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        .move-pill-special {
+            background: linear-gradient(90deg, rgba(14, 165, 233, 0.85), rgba(56, 189, 248, 0.75));
+            border: 1px solid rgba(186, 230, 253, 0.8);
+            box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+        }
+
+        @keyframes gentleFloat {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-8px);
+            }
+        }
+
+        .float-anim {
+            animation: gentleFloat 2.8s ease-in-out infinite;
+        }
+
+        @keyframes popReveal {
+            0% {
+                transform: scale(0.6);
+                opacity: 0;
+            }
+
+            70% {
+                transform: scale(1.06);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .reveal-anim {
+            animation: popReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 9999px;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-2.5 sm:p-4 lg:p-5 select-none">
+
+    <!-- Toast Container -->
+    <div id="toast-container"
+        class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full"></div>
+
+    <div class="max-w-[1440px] mx-auto space-y-3">
+
+        <!-- Top Minimal Navigation Bar -->
+        <header
+            class="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800/90 rounded-2xl px-4 py-2.5">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <i class="fa-solid fa-gavel text-sm"></i>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <h1 class="text-sm sm:text-base font-bold text-white tracking-tight">Pokémon Auction Online (Cloud
+                        Sync)</h1>
+                    <span id="db-count-badge"
+                        class="text-[11px] px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium">กำลังเชื่อมต่อคลาวด์...</span>
+                </div>
+            </div>
+
+            <!-- Action Toolbar -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="openJoinModal()"
+                    class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-sm shadow-orange-500/20 active:scale-95">
+                    <i class="fa-solid fa-user-plus"></i>
+                    <span>เข้าร่วมที่นั่ง</span>
+                </button>
+                <button onclick="copyRoomLink()"
+                    class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-share-nodes"></i>
+                    <span>คัดลอกลิงก์ให้เพื่อน</span>
+                </button>
+                <div id="online-status-badge"
+                    class="px-3 py-1.5 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                    <span id="room-id-display">ห้อง: กำลังเชื่อมต่อ...</span>
+                </div>
+                <select id="pool-filter" onchange="nextAuctionLot()"
+                    class="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs font-medium focus:outline-none focus:border-amber-500">
+                    <option value="all">🎲 สุ่มทุกตัวทุกร่าง (1,300+ ร่าง)</option>
+                    <option value="strong">⚔️ คัดตัวพร้อมสู้ (BST 460+)</option>
+                    <option value="special">✨ เน้นร่างพิเศษ (Mega/Gmax/เทพ)</option>
+                </select>
+                <button onclick="exportAllTeams()"
+                    class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-regular fa-copy"></i>
+                    <span>คัดลอก Showdown ทุกทีม</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN ARENA LAYOUT -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
+
+            <!-- LEFT COLUMN: Player 1 & 2 -->
+            <div id="left-players-col" class="lg:col-span-3 flex flex-col justify-between gap-3.5 order-2 lg:order-1">
+            </div>
+
+            <!-- CENTER COLUMN: Stage Showcase -->
+            <div class="lg:col-span-6 order-1 lg:order-2 flex flex-col">
+                <div
+                    class="stage-backdrop border border-slate-800/90 rounded-3xl p-4 sm:p-6 relative flex-1 flex flex-col justify-between min-h-[540px] shadow-2xl overflow-hidden">
+
+                    <!-- Top Stage Header -->
+                    <div class="text-center relative z-20">
+                        <div
+                            class="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-black/40 border border-white/10 text-[11px] text-slate-300 mb-1">
+                            <span class="mono font-bold text-amber-400">LOT #<span id="lot-number">1</span></span>
+                            <span>•</span>
+                            <span id="ball-label">Poké Ball</span>
+                            <span>•</span>
+                            <span id="auction-stage-pill" class="text-emerald-400 font-bold">เปิดประมูล</span>
+                        </div>
+                        <h2 id="lot-title"
+                            class="text-2xl sm:text-4xl font-extrabold text-white tracking-wide drop-shadow-[0_3px_6px_rgba(0,0,0,0.9)]">
+                            ??? (ซ่อนในบอล)
+                        </h2>
+                    </div>
+
+                    <!-- Center Stage Area -->
+                    <div class="relative my-auto py-4 grid grid-cols-12 items-center gap-2 z-20">
+
+                        <!-- LEFT HUD OVERLAY -->
+                        <div class="col-span-5 sm:col-span-4 space-y-3 z-20">
+                            <div onclick="editCurrentLotNickname()"
+                                class="inline-flex items-center gap-1.5 border-b border-white/60 pb-0.5 cursor-pointer group"
+                                title="คลิกเพื่อเปลี่ยนชื่อเล่น">
+                                <i class="fa-solid fa-pen text-xs text-white group-hover:text-amber-400"></i>
+                                <span id="hud-nickname"
+                                    class="text-xs sm:text-sm font-bold text-white mono tracking-tight group-hover:text-amber-300">MysteryMon</span>
+                            </div>
+
+                            <div>
+                                <div
+                                    class="text-xs sm:text-sm font-bold text-white mb-1.5 flex items-center gap-1.5 drop-shadow">
+                                    <span class="text-white/80 font-light">|</span>
+                                    <span>ท่า</span>
+                                </div>
+                                <div id="hud-moves-list" class="space-y-1.5 max-w-[190px]"></div>
+                            </div>
+
+                            <div class="pt-1">
+                                <div
+                                    class="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 drop-shadow">
+                                    <span class="text-white/80 font-light">|</span>
+                                    <span>อบิลิตี้</span>
+                                </div>
+                                <div id="hud-ability"
+                                    class="text-sm sm:text-base font-extrabold text-amber-200 mono tracking-tight mt-0.5 drop-shadow">
+                                    ★ ???
+                                </div>
+                                <div id="hud-sub-abilities" class="text-[10px] text-slate-300/80 leading-tight mt-0.5">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CENTER SPRITE & MYSTERY CLUES -->
+                        <div class="col-span-7 sm:col-span-4 flex flex-col items-center justify-center relative">
+                            <div
+                                class="w-44 h-12 rounded-full bg-amber-500/15 blur-lg absolute -bottom-2 pointer-events-none">
+                            </div>
+
+                            <div class="relative flex items-center justify-center h-48 sm:h-60 w-48 sm:w-60">
+                                <img id="lot-image" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png" alt="Poké Ball"
+                                    class="w-40 h-40 sm:w-56 sm:h-56 object-contain float-anim relative z-10 drop-shadow-[0_15px_30px_rgba(0,0,0,0.9)] transition-all"
+                                    style="image-rendering: pixelated;">
+                            </div>
+
+                            <div id="mystery-clues-banner"
+                                class="w-full mt-2 bg-black/55 backdrop-blur-md border border-white/15 rounded-2xl p-2.5 text-[11px] text-slate-200 space-y-1">
+                                <div class="flex items-center justify-between text-amber-300 font-bold">
+                                    <span><i class="fa-solid fa-magnifying-glass mr-1"></i>คำใบ้ในบอล</span>
+                                    <span id="clue-bst" class="mono">BST ???</span>
+                                </div>
+                                <div class="flex justify-between text-slate-300">
+                                    <span id="clue-size">-</span>
+                                    <span id="clue-origin" class="text-indigo-300 font-medium">-</span>
+                                </div>
+                                <div id="clue-trait"
+                                    class="text-slate-300/90 text-[10px] leading-snug pt-0.5 border-t border-white/10">-
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT HUD OVERLAY -->
+                        <div
+                            class="col-span-12 sm:col-span-4 flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-4 z-20 mt-2 sm:mt-0">
+
+                            <div class="text-left sm:text-right">
+                                <div
+                                    class="inline-flex items-center gap-2 bg-black/45 border border-white/15 px-3 py-1.5 rounded-xl">
+                                    <i class="fa-solid fa-tag text-white text-sm"></i>
+                                    <span id="current-price"
+                                        class="text-xl sm:text-2xl font-extrabold text-white mono tracking-tight">10,000</span>
+                                </div>
+                                <div class="mt-1 text-[11px] text-slate-300 flex items-center gap-1.5 sm:justify-end">
+                                    <span>ผู้นำ: <span id="leader-badge"
+                                            class="font-bold text-amber-400">ยังไม่มี</span></span>
+                                    <span id="timer-badge"
+                                        class="hidden px-2 py-0.5 rounded bg-rose-600 text-white font-black mono text-xs animate-bounce">⏱️
+                                        5s</span>
+                                </div>
+                            </div>
+
+                            <div class="text-left sm:text-right">
+                                <div
+                                    class="text-xs sm:text-sm font-bold text-white flex items-center sm:justify-end gap-1.5 drop-shadow">
+                                    <span>ประเภท</span>
+                                    <span class="text-white/80 font-light">|</span>
+                                </div>
+                                <div id="lot-types" class="flex items-center sm:justify-end gap-1.5 mt-1"></div>
+                            </div>
+
+                            <div class="text-left sm:text-right">
+                                <div
+                                    class="text-xs sm:text-sm font-bold text-white flex items-center sm:justify-end gap-1.5 drop-shadow">
+                                    <span>ไอเทม</span>
+                                    <span class="text-white/80 font-light">|</span>
+                                </div>
+                                <div class="flex items-center sm:justify-end gap-1.5 mt-1">
+                                    <img id="hud-item-img" src="" class="w-6 h-6 object-contain hidden" alt="item">
+                                    <span id="spec-item"
+                                        class="text-xs sm:text-sm font-bold text-slate-100 mono drop-shadow">???</span>
+                                </div>
+                                <div id="hud-item-desc" class="text-[10px] text-slate-300/80 max-w-[170px] sm:ml-auto">
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Bottom Stage Controls Bar -->
+                    <div
+                        class="pt-3 border-t border-white/10 flex flex-wrap items-center justify-end gap-2 relative z-20">
+                        <div id="active-host-controls" class="flex items-center gap-2">
+                            <button onclick="nextAuctionLot()" id="btn-skip-lot"
+                                class="px-4 py-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-slate-300 hover:text-white text-xs font-bold border border-white/15 transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-forward text-slate-400"></i>
+                                <span>ข้ามบอลนี้</span>
+                            </button>
+                        </div>
+
+                        <div id="sold-host-controls" class="hidden flex-1 sm:flex-initial flex justify-end">
+                            <button onclick="nextAuctionLot()"
+                                class="px-8 py-2.5 rounded-xl bg-gradient-to-b from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 active:scale-95 text-slate-950 font-black text-base tracking-wide transition shadow-xl shadow-orange-500/30 border-2 border-white/80">
+                                ต่อไปครับ <i class="fa-solid fa-caret-right ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Player 3 & 4 -->
+            <div id="right-players-col" class="lg:col-span-3 flex flex-col justify-between gap-3.5 order-3"></div>
+
+        </div>
+
+    </div>
+
+    <!-- Modals -->
+    <div id="pokemon-modal"
+        class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <img id="modal-poke-img" src=""
+                        class="w-12 h-12 object-contain bg-slate-950 rounded-xl p-1 border border-slate-800">
+                    <div>
+                        <h4 id="modal-poke-name" class="text-base font-bold text-white">-</h4>
+                        <p id="modal-poke-owner" class="text-xs text-slate-400">-</p>
+                    </div>
+                </div>
+                <button onclick="closePokemonModal()"
+                    class="w-8 h-8 rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="modal-poke-body" class="space-y-2.5 text-xs"></div>
+            <div class="flex justify-end pt-3 border-t border-slate-800">
+                <button onclick="closePokemonModal()"
+                    class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Join Room Modal -->
+    <div id="join-room-modal"
+        class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 text-lg">
+                        <i class="fa-solid fa-gamepad"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-extrabold text-white">เข้าร่วมห้องประมูล</h3>
+                        <p class="text-xs text-slate-400">เลือกที่นั่งและตั้งโปรไฟล์ของคุณ</p>
+                    </div>
+                </div>
+                <button onclick="closeJoinModal()" class="w-8 h-8 rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Avatar Preview & Randomizer -->
+            <div class="flex flex-col items-center gap-2 py-1">
+                <div class="relative group">
+                    <img id="join-avatar-preview" src="https://api.dicebear.com/7.x/adventurer/svg?seed=Ash" class="w-20 h-20 rounded-2xl bg-slate-950 p-1 border-2 border-amber-400 shadow-xl shadow-amber-500/15 object-contain">
+                    <button type="button" onclick="randomizeJoinAvatar()" class="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-bold hover:bg-amber-400 shadow transition active:scale-95" title="สุ่มรูปใหม่">
+                        <i class="fa-solid fa-dice text-xs"></i>
+                    </button>
+                </div>
+                <span class="text-[11px] text-slate-400">ไอคอนอวตารหน้าคนของคุณ</span>
+            </div>
+
+            <!-- Trainer Name Input -->
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <i class="fa-solid fa-signature text-amber-400"></i>
+                    <span>ชื่อเทรนเนอร์</span>
+                </label>
+                <input type="text" id="join-player-name" placeholder="ใส่ชื่อของคุณ เช่น ซาโตชิ..." maxlength="15"
+                    class="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-amber-400">
+            </div>
+
+            <!-- Slot Selection -->
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <i class="fa-solid fa-chair text-amber-400"></i>
+                    <span>เลือกที่นั่ง (Seat)</span>
+                </label>
+                <div id="join-slot-selector" class="grid grid-cols-4 gap-2"></div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2 pt-2 border-t border-slate-800">
+                <button type="button" onclick="confirmJoinRoom(false)"
+                    class="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black rounded-xl text-sm transition shadow-lg shadow-orange-500/20 active:scale-95">
+                    🚀 เข้าสู่การประมูล
+                </button>
+                <button type="button" onclick="confirmJoinRoom(true)" title="เพิ่มผู้เล่นจำลอง / บอท สำหรับทดสอบ"
+                    class="px-3.5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold rounded-xl text-xs transition border border-slate-700">
+                    🤖 บอท
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'pokemon-auction-live-room';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+        let db = null;
+        let auth = null;
+        let isCloudActive = false;
+
+        // Get Room ID from URL query string (?room=xxx) or generate one
+        const urlParams = new URLSearchParams(window.location.search);
+        let roomId = urlParams.get('room');
+        if (!roomId) {
+            roomId = 'room-' + Math.random().toString(36).substring(2, 8);
+            const newUrl = `${window.location.pathname}?room=${roomId}`;
+            window.history.replaceState({}, '', newUrl);
+        }
+        document.getElementById('room-id-display').innerText = `ห้อง: ${roomId}`;
+
+        const POKEMON_POOL = [
+            {
+                id: 6, name: "Charizard", types: ["Fire", "Flying"], bst: 534, tier: "Epic", size: "1.7m / 90.5kg", origin: "Kanto",
+                trait: "มังกรเพลิงสองปีก เปลวไฟที่หางสะท้อนพลังชีวิต",
+                sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",
+                abilities: ["Blaze", "Solar Power"],
+                moves: ["Flamethrower", "Air Slash", "Dragon Claw", "Solar Beam", "Fire Blast", "Overheat"]
+            },
+            {
+                id: 9, name: "Blastoise", types: ["Water"], bst: 530, tier: "Epic", size: "1.6m / 85.5kg", origin: "Kanto",
+                trait: "ปืนใหญ่แรงดันน้ำคู่บนกระดองเหล็กเจาะแผ่นเหล็กหนา",
+                sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png",
+                abilities: ["Torrent", "Rain Dish"],
+                moves: ["Hydro Pump", "Ice Beam", "Flash Cannon", "Aqua Jet", "Surf", "Dark Pulse"]
+            },
+            {
+                id: 150, name: "Mewtwo", types: ["Psychic"], bst: 680, tier: "Legendary", size: "2.0m / 122.0kg", origin: "Kanto",
+                trait: "สุดยอดพันธุกรรมพลังจิต สร้างคลื่นจิตทำลายล้างสูง",
+                sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png",
+                abilities: ["Pressure", "Unnerve"],
+                moves: ["Psystrike", "Shadow Ball", "Aura Sphere", "Recover", "Psychic", "Thunderbolt"]
+            },
+            {
+                id: 384, name: "Rayquaza", types: ["Dragon", "Flying"], bst: 680, tier: "Legendary", size: "7.0m / 206.5kg", origin: "Hoenn",
+                trait: "มังกรเขียวแห่งชั้นบรรยากาศโอโซนผู้สยบความขัดแย้ง",
+                sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/384.png",
+                abilities: ["Air Lock"],
+                moves: ["Dragon Ascent", "Extreme Speed", "Outrage", "Earthquake", "Draco Meteor", "Dragon Dance"]
+            }
+        ];
+
+        let ALL_POKEMON_INDEX = [];
+        const BALLS = [
+            { name: "Poké Ball", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png" },
+            { name: "Great Ball", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/great-ball.png" },
+            { name: "Ultra Ball", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/ultra-ball.png" },
+            { name: "Master Ball", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/master-ball.png" },
+            { name: "Cherish Ball", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/cherish-ball.png" },
+            { name: "Beast Ball", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/beast-ball.png" }
+        ];
+
+        const HELD_ITEMS = [
+            { name: "Focus Sash", desc: "กันตาย 1 ครั้งเมื่อเลือดเต็ม", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/focus-sash.png" },
+            { name: "Life Orb", desc: "ตีแรงขึ้น 30% เสียเลือด 10%", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/life-orb.png" },
+            { name: "Leftovers", desc: "ฟื้นเลือด 1/16 ทุกเทิร์น", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/leftovers.png" }
+        ];
+
+        let countdownTimer = null;
+        let peekSpecsUnlocked = false;
+
+        let myClientId = sessionStorage.getItem('pokemon_my_client_id');
+        if (!myClientId) {
+            myClientId = 'user_' + Math.random().toString(36).substring(2, 9);
+            sessionStorage.setItem('pokemon_my_client_id', myClientId);
+        }
+        const mqttTopic = `pokemon_auction_sync/room_${roomId}`;
+        let mqttClient = null;
+        let isMqttConnected = false;
+        let hasReceivedCloudState = false;
+        const localChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(`pokemon_auction_${roomId}`) : null;
+
+        let roomState = {
+            players: [null, null, null, null],
+            currentLot: null,
+            currentBid: 5000,
+            currentLeaderIndex: null,
+            auctionStatus: "bidding",
+            auctionEndTime: null,
+            countdownSeconds: 5,
+            lotCounter: 1,
+            lastUpdated: 0
+        };
+
+        window.rand = function (arr) { return arr[Math.floor(Math.random() * arr.length)]; };
+
+        function formatPokeString(str) {
+            if (!str) return '';
+            return str.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+        }
+
+        window.loadAllPokemonIndex = async function () {
+            try {
+                const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1000');
+                const data = await res.json();
+                if (data && data.results) {
+                    ALL_POKEMON_INDEX = data.results;
+                    document.getElementById('db-count-badge').innerText = `คลัง ${ALL_POKEMON_INDEX.length} ร่าง`;
+                }
+            } catch (e) {
+                document.getElementById('db-count-badge').innerText = `โหมดออฟไลน์`;
+            }
+        };
+
+        window.fetchRandomPokemonFromAPI = async function () {
+            if (ALL_POKEMON_INDEX.length === 0) return window.rand(POKEMON_POOL);
+            try {
+                const picked = window.rand(ALL_POKEMON_INDEX);
+                const res = await fetch(picked.url);
+                const detail = await res.json();
+                const bst = detail.stats.reduce((sum, s) => sum + s.base_stat, 0);
+                const sprite = detail.sprites?.other?.['official-artwork']?.front_default || detail.sprites?.front_default;
+                if (!sprite) return window.rand(POKEMON_POOL);
+
+                const types = detail.types.map(t => t.type.name.charAt(0).toUpperCase() + t.type.name.slice(1));
+                const tier = bst >= 600 ? "Legendary" : bst >= 500 ? "Epic" : "Rare";
+
+                const abilities = (detail.abilities && detail.abilities.length > 0)
+                    ? detail.abilities.map(a => formatPokeString(a.ability.name))
+                    : ["Keen Eye"];
+
+                const movesPool = (detail.moves && detail.moves.length > 0)
+                    ? detail.moves.map(m => formatPokeString(m.move.name))
+                    : ["Tackle", "Quick Attack", "Swift", "Protect"];
+
+                return {
+                    id: detail.id,
+                    name: detail.name.charAt(0).toUpperCase() + detail.name.slice(1),
+                    types: types,
+                    bst: bst,
+                    tier: tier,
+                    size: `${(detail.height / 10).toFixed(1)}m / ${(detail.weight / 10).toFixed(1)}kg`,
+                    origin: "Gen 1-9",
+                    trait: `พลังสเตตัสรวม ${bst}`,
+                    sprite: sprite,
+                    abilities: abilities,
+                    moves: movesPool
+                };
+            } catch (err) {
+                return window.rand(POKEMON_POOL);
+            }
+        };
+
+        window.buildLotFromPokemon = function (poke) {
+            const ball = window.rand(BALLS);
+
+            // Extract unique abilities from the actual pokemon
+            const abilities = (poke.abilities && poke.abilities.length > 0)
+                ? poke.abilities
+                : ["Adaptability", "Pressure"];
+            const primaryAbility = abilities[0];
+
+            // Pick 4 unique moves dynamically from the pokemon's real move pool
+            let moveset = [];
+            if (poke.moves && poke.moves.length >= 4) {
+                const shuffled = [...poke.moves].sort(() => 0.5 - Math.random());
+                moveset = shuffled.slice(0, 4).map((mName, idx) => ({
+                    name: mName,
+                    isSpecial: idx === 0
+                }));
+            } else if (poke.moves && poke.moves.length > 0) {
+                moveset = poke.moves.map((mName, idx) => ({
+                    name: mName,
+                    isSpecial: idx === 0
+                }));
+                const generics = ["Protect", "Rest", "Substitute", "Sleep Talk"];
+                while (moveset.length < 4) {
+                    moveset.push({ name: generics[moveset.length], isSpecial: false });
+                }
+            } else {
+                const fallbackMoves = ["Hyper Voice", "Tera Blast", "Protect", "Earthquake", "Thunderbolt", "Ice Beam", "Flamethrower"];
+                const shuffled = [...fallbackMoves].sort(() => 0.5 - Math.random());
+                moveset = shuffled.slice(0, 4).map((mName, idx) => ({
+                    name: mName,
+                    isSpecial: idx === 0
+                }));
+            }
+
+            const heldItemObj = window.rand(HELD_ITEMS);
+
+            return {
+                lotNumber: roomState.lotCounter,
+                nickname: poke.name,
+                pokemon: poke,
+                ball: ball,
+                primaryAbility: primaryAbility,
+                abilities: abilities,
+                moveset: moveset,
+                heldItemObj: heldItemObj,
+                startPrice: 5000
+            };
+        };
+
+        function publishState() {
+            roomState.lastUpdated = Date.now();
+            const stateStr = JSON.stringify(roomState);
+
+            try {
+                localStorage.setItem(`pokemon_auction_${roomId}`, stateStr);
+            } catch (e) { }
+
+            // Instant sync across all tabs on the same computer (0ms latency)
+            if (localChannel) {
+                try {
+                    localChannel.postMessage({ type: 'SYNC_STATE', state: roomState });
+                } catch (e) { }
+            }
+
+            // Real-time Cloud Sync across all computers, tablets, and phones
+            // Uses retain: true so any new player joining immediately gets this exact state!
+            if (mqttClient && mqttClient.connected) {
+                try {
+                    mqttClient.publish(mqttTopic + '/state', stateStr, { retain: true, qos: 1 });
+                } catch (e) { }
+            }
+
+            updateOnlineBadge();
+            renderUI();
+        }
+
+        function applyIncomingState(newState) {
+            if (!newState || !newState.currentLot) return;
+            // Adopt if newer or if we didn't have a lot yet
+            if (!roomState.lastUpdated || !newState.lastUpdated || newState.lastUpdated >= roomState.lastUpdated || !roomState.currentLot) {
+                const prevStatus = roomState.auctionStatus;
+                roomState = newState;
+                hasReceivedCloudState = true;
+                try {
+                    localStorage.setItem(`pokemon_auction_${roomId}`, JSON.stringify(roomState));
+                } catch (e) { }
+
+                if (prevStatus !== "sold" && roomState.auctionStatus === "sold" && roomState.currentLeaderIndex !== null && roomState.players[roomState.currentLeaderIndex]) {
+                    const winner = roomState.players[roomState.currentLeaderIndex];
+                    window.toast(`🎉 ${winner.name} ชนะการประมูล! ได้รับ ${roomState.currentLot.pokemon.name}`, "success");
+                }
+
+                updateOnlineBadge();
+                renderUI();
+            }
+        }
+
+        function initRealtimeSync() {
+            // Local Tab BroadcastChannel Listener
+            if (localChannel) {
+                localChannel.onmessage = (event) => {
+                    if (event.data && event.data.type === 'SYNC_STATE' && event.data.state) {
+                        applyIncomingState(event.data.state);
+                    }
+                };
+            }
+
+            // Local Tab Storage Event Listener
+            window.addEventListener('storage', (e) => {
+                if (e.key === `pokemon_auction_${roomId}` && e.newValue) {
+                    try {
+                        const parsed = JSON.parse(e.newValue);
+                        applyIncomingState(parsed);
+                    } catch (err) { }
+                }
+            });
+
+            // Cloud MQTT Connection (EMQX / HiveMQ WebSockets)
+            if (typeof mqtt !== 'undefined') {
+                try {
+                    mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                        clientId: 'poke_' + myClientId,
+                        clean: true,
+                        connectTimeout: 5000,
+                        reconnectPeriod: 2500
+                    });
+
+                    mqttClient.on('connect', () => {
+                        isMqttConnected = true;
+                        // Subscribe to the retained room state topic
+                        mqttClient.subscribe(mqttTopic + '/state', { qos: 1 });
+                        updateOnlineBadge();
+                    });
+
+                    mqttClient.on('error', () => {
+                        isMqttConnected = false;
+                        updateOnlineBadge();
+                    });
+
+                    mqttClient.on('close', () => {
+                        isMqttConnected = false;
+                        updateOnlineBadge();
+                    });
+
+                    mqttClient.on('message', (topic, payload) => {
+                        try {
+                            const data = JSON.parse(payload.toString());
+                            if (data && data.currentLot) {
+                                hasReceivedCloudState = true;
+                                applyIncomingState(data);
+                            }
+                        } catch (e) { }
+                    });
+                } catch (e) {
+                    updateOnlineBadge();
+                }
+            } else {
+                updateOnlineBadge();
+            }
+
+            // Periodic heartbeat every 5s
+            setInterval(() => {
+                updateOnlineBadge();
+            }, 5000);
+        }
+
+        function updateOnlineBadge() {
+            const badge = document.getElementById('online-status-badge');
+            const dbBadge = document.getElementById('db-count-badge');
+            const onlineCount = roomState.players.filter(p => p !== null).length;
+
+            if (isMqttConnected) {
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> <span class="text-emerald-300 font-bold">🟢 ออนไลน์ (Cloud Live)</span> <span class="text-slate-500">|</span> <span class="text-amber-300 font-bold mono">👥 ${onlineCount}/4 คน</span>`;
+                badge.className = "px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs flex items-center gap-1.5";
+                if (dbBadge) dbBadge.innerText = `คลัง ${ALL_POKEMON_INDEX.length || 1000} ร่าง (ออนไลน์สด)`;
+            } else {
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-indigo-400"></span> <span class="text-indigo-300 font-bold">🔵 ซิงค์ในเครื่อง (Multi-Tab)</span> <span class="text-slate-500">|</span> <span class="text-amber-300 font-bold mono">👥 ${onlineCount}/4 คน</span>`;
+                badge.className = "px-3 py-1.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-xs flex items-center gap-1.5";
+            }
+        }
+
+        let mySelectedSlot = 0;
+        let currentJoinAvatarSeed = "Ash";
+
+        window.openJoinModal = function (slotIdx = null) {
+            if (slotIdx !== null) {
+                mySelectedSlot = slotIdx;
+            } else {
+                const freeIdx = roomState.players.findIndex(p => p === null);
+                mySelectedSlot = freeIdx !== -1 ? freeIdx : 0;
+            }
+
+            const input = document.getElementById('join-player-name');
+            const savedName = localStorage.getItem('pokemon_my_name');
+            if (savedName && !input.value) input.value = savedName;
+
+            renderSlotSelector();
+            const modal = document.getElementById('join-room-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        };
+
+        window.closeJoinModal = function () {
+            const modal = document.getElementById('join-room-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        };
+
+        window.randomizeJoinAvatar = function () {
+            const seeds = ["Ash", "Red", "Brock", "Misty", "Gary", "Serena", "Dawn", "Leon", "Cynthia", "Iris", "Steven", "Felix", "Aneka", "Liliana", "Jocelyn", "Zack", "Maya", "Leo"];
+            currentJoinAvatarSeed = seeds[Math.floor(Math.random() * seeds.length)] + '_' + Math.floor(Math.random() * 100);
+            updateJoinAvatarPreview();
+        };
+
+        function updateJoinAvatarPreview() {
+            const img = document.getElementById('join-avatar-preview');
+            if (img) img.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${currentJoinAvatarSeed}`;
+        }
+
+        function renderSlotSelector() {
+            const container = document.getElementById('join-slot-selector');
+            if (!container) return;
+            container.innerHTML = '';
+            for (let i = 0; i < 4; i++) {
+                const isTaken = roomState.players[i] !== null;
+                const isSelected = mySelectedSlot === i;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                    isSelected ? 'bg-amber-500 text-slate-950 border-amber-400 ring-2 ring-amber-400/40' :
+                    isTaken ? 'bg-slate-950/60 text-slate-500 border-slate-800 opacity-60 cursor-not-allowed' :
+                    'bg-slate-950 text-slate-300 border-slate-700 hover:border-slate-500'
+                }`;
+                btn.innerHTML = `<span>#${i + 1}</span><span class="text-[10px] font-normal">${isTaken ? 'มีคนแล้ว' : 'ว่าง'}</span>`;
+                if (!isTaken) {
+                    btn.onclick = () => {
+                        mySelectedSlot = i;
+                        renderSlotSelector();
+                    };
+                }
+                container.appendChild(btn);
+            }
+        }
+
+        window.confirmJoinRoom = function (isBot = false) {
+            const nameInput = document.getElementById('join-player-name');
+            let name = nameInput.value.trim();
+            if (!name) {
+                name = isBot ? `บอทเทรนเนอร์ #${mySelectedSlot + 1}` : `เทรนเนอร์ #${mySelectedSlot + 1}`;
+            }
+
+            const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${currentJoinAvatarSeed}`;
+            const playerId = isBot ? 'bot_' + Math.random().toString(36).substring(2, 8) : myClientId;
+
+            const newPlayer = {
+                id: playerId,
+                name: name,
+                avatar: avatar,
+                money: 50000,
+                team: [],
+                isOnline: true,
+                isBot: isBot,
+                joinedAt: Date.now()
+            };
+
+            roomState.players[mySelectedSlot] = newPlayer;
+
+            if (!isBot) {
+                localStorage.setItem('pokemon_my_name', name);
+                sessionStorage.setItem('pokemon_my_slot', mySelectedSlot);
+            }
+
+            closeJoinModal();
+            publishState();
+            window.toast(`ยินดีต้อนรับ ${name} เข้าสู่การประมูล!`, "success");
+        };
+
+        window.leaveRoom = function (slotIdx) {
+            const p = roomState.players[slotIdx];
+            if (!p) return;
+            if (!confirm(`ต้องการนำ ${p.name} ออกจากที่นั่ง #${slotIdx + 1} หรือไม่?`)) return;
+
+            roomState.players[slotIdx] = null;
+            if (roomState.currentLeaderIndex === slotIdx) {
+                roomState.currentLeaderIndex = null;
+            }
+
+            publishState();
+            window.toast(`ออกจากที่นั่งเรียบร้อย`, "info");
+        };
+
+        window.nextAuctionLot = async function () {
+            const poke = await window.fetchRandomPokemonFromAPI();
+            roomState.lotCounter = (roomState.lotCounter || 0) + 1;
+            roomState.currentLot = window.buildLotFromPokemon(poke);
+            roomState.currentBid = roomState.currentLot.startPrice;
+            roomState.currentLeaderIndex = null;
+            roomState.auctionStatus = "bidding";
+            roomState.auctionEndTime = null;
+            roomState.countdownSeconds = 5;
+
+            publishState();
+            window.toast(`เริ่มประมูล LOT #${roomState.lotCounter}!`, "info");
+        };
+
+        window.placeBid = async function (playerIndex, amount) {
+            if (roomState.auctionStatus === "sold") return;
+            const player = roomState.players[playerIndex];
+            if (!player) return;
+
+            // Enforce: Players can ONLY bid on their own seat (or test bot)
+            if (player.id !== myClientId && !player.isBot) {
+                window.toast("คุณสามารถกดบิดได้เฉพาะที่นั่งของตัวเองเท่านั้น!", "error");
+                return;
+            }
+
+            const targetBid = roomState.currentLeaderIndex === null ? roomState.currentBid : roomState.currentBid + amount;
+
+            if (player.money < targetBid) {
+                window.toast(`${player.name} เงินไม่พอ! (มี ₽${player.money.toLocaleString()})`, "error");
+                return;
+            }
+
+            roomState.currentBid = targetBid;
+            roomState.currentLeaderIndex = playerIndex;
+            roomState.auctionStatus = "countdown";
+            roomState.auctionEndTime = Date.now() + 5000;
+            roomState.countdownSeconds = 5;
+
+            publishState();
+            window.toast(`${player.name} เสนอราคา ₽${targetBid.toLocaleString()}!`, "info");
+        };
+
+        window.placeCustomBid = async function (playerIndex) {
+            if (roomState.auctionStatus === "sold") return;
+            const player = roomState.players[playerIndex];
+            if (!player) return;
+
+            // Enforce: Players can ONLY bid on their own seat (or test bot)
+            if (player.id !== myClientId && !player.isBot) {
+                window.toast("คุณสามารถกดบิดได้เฉพาะที่นั่งของตัวเองเท่านั้น!", "error");
+                return;
+            }
+
+            const input = document.getElementById(`custom-bid-input-${playerIndex}`);
+            if (!input) return;
+            const raw = input.value.replace(/,/g, '').trim();
+            const val = parseInt(raw, 10);
+            if (isNaN(val) || val <= 0) {
+                window.toast("กรุณากรอกจำนวนเงินตัวเลขให้ถูกต้อง", "error");
+                return;
+            }
+
+            let targetBid = val;
+            if (val <= roomState.currentBid) {
+                targetBid = roomState.currentBid + val;
+            }
+
+            if (targetBid <= roomState.currentBid) {
+                window.toast(`ราคาบิดต้องมากกว่าราคาปัจจุบัน (มากกว่า ₽${roomState.currentBid.toLocaleString()})`, "error");
+                return;
+            }
+
+            if (player.money < targetBid) {
+                window.toast(`${player.name} เงินไม่พอ! (มี ₽${player.money.toLocaleString()})`, "error");
+                return;
+            }
+
+            roomState.currentBid = targetBid;
+            roomState.currentLeaderIndex = playerIndex;
+            roomState.auctionStatus = "countdown";
+            roomState.auctionEndTime = Date.now() + 5000;
+            roomState.countdownSeconds = 5;
+
+            input.value = '';
+            publishState();
+            window.toast(`${player.name} เสนอราคาเอง ₽${targetBid.toLocaleString()}!`, "info");
+        };
+
+        // Synchronized countdown ticker: calculated from absolute roomState.auctionEndTime
+        setInterval(() => {
+            if (roomState.auctionStatus === "countdown" && roomState.auctionEndTime) {
+                const remainingMs = roomState.auctionEndTime - Date.now();
+                const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
+                roomState.countdownSeconds = remainingSec;
+
+                const timerBadge = document.getElementById('timer-badge');
+                if (timerBadge) {
+                    timerBadge.classList.remove('hidden');
+                    timerBadge.innerText = `⏱️ ${remainingSec}s`;
+                    if (remainingSec <= 2) {
+                        timerBadge.className = 'px-3 py-1.5 rounded-full bg-rose-500/30 border border-rose-500/40 text-rose-400 text-xs font-bold animate-pulse';
+                    } else {
+                        timerBadge.className = 'px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-bold';
+                    }
+                }
+
+                if (remainingMs <= 0) {
+                    roomState.auctionStatus = "sold";
+                    roomState.countdownSeconds = 0;
+                    roomState.auctionEndTime = null;
+
+                    if (roomState.currentLeaderIndex !== null && roomState.players[roomState.currentLeaderIndex]) {
+                        const winner = roomState.players[roomState.currentLeaderIndex];
+                        winner.money -= roomState.currentBid;
+                        if (!winner.team) winner.team = [];
+                        winner.team.push(JSON.parse(JSON.stringify(roomState.currentLot)));
+                        window.toast(`🎉 ${winner.name} ชนะการประมูล! ได้รับ ${roomState.currentLot.pokemon.name}`, "success");
+                    }
+
+                    publishState();
+                }
+            }
+        }, 100);
+
+        async function saveStateToCloud() {
+            publishState();
+        }
+        window.saveStateToCloud = saveStateToCloud;
+        window.broadcastMessage = function () { publishState(); };
+
+        window.togglePeekMode = function () {
+            peekSpecsUnlocked = !peekSpecsUnlocked;
+            renderUI();
+        }
+
+        window.editCurrentLotNickname = function () {
+            if (!roomState.currentLot) return;
+            const nick = prompt("ตั้งชื่อเล่น:", roomState.currentLot.nickname);
+            if (nick) {
+                roomState.currentLot.nickname = nick;
+                saveStateToCloud();
+            }
+        }
+
+        window.inspectTeamMember = function (pIdx, sIdx) {
+            const member = roomState.players[pIdx].team[sIdx];
+            if (!member) return;
+            document.getElementById('modal-poke-img').src = member.pokemon.sprite;
+            document.getElementById('modal-poke-name').innerText = `${member.nickname} (${member.pokemon.name})`;
+            document.getElementById('modal-poke-owner').innerText = `ทีมของ ${roomState.players[pIdx].name}`;
+            document.getElementById('modal-poke-body').innerHTML = `
+                <div class="p-3 bg-slate-950 rounded-xl space-y-2">
+                    <div><b>Ability:</b> ${member.primaryAbility}</div>
+                    <div><b>Held Item:</b> ${member.heldItemObj.name} (${member.heldItemObj.desc})</div>
+                </div>
+            `;
+            document.getElementById('pokemon-modal').classList.replace('hidden', 'flex');
+        }
+
+        window.closePokemonModal = function () {
+            document.getElementById('pokemon-modal').classList.replace('flex', 'hidden');
+        }
+
+        window.exportAllTeams = function () {
+            let out = `=== สรุปผลประมูล ===\n\n`;
+            roomState.players.forEach(p => {
+                out += `${p.name} (เงินเหลือ ₽${p.money.toLocaleString()}):\n`;
+                p.team.forEach(m => out += `- ${m.nickname} @ ${m.heldItemObj.name}\n`);
+                out += `\n`;
+            });
+            const ta = document.createElement('textarea');
+            ta.value = out;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            window.toast("คัดลอกข้อมูลทีมแล้ว!", "success");
+        }
+
+        window.copyRoomLink = function () {
+            const url = window.location.href;
+            const ta = document.createElement('textarea');
+            ta.value = url;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            window.toast("คัดลอกลิงก์ห้องเรียบร้อย! ส่งให้เพื่อนได้เลย", "success");
+        }
+
+        window.toast = function (msg, type = "info") {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            el.className = `px-4 py-3 rounded-xl border shadow-xl text-xs font-medium bg-slate-800 text-white`;
+            el.innerText = msg;
+            container.appendChild(el);
+            setTimeout(() => el.remove(), 2500);
+        }
+
+        function renderUI() {
+            renderPlayerCards();
+
+            const lot = roomState.currentLot;
+            if (!lot) {
+                document.getElementById('lot-title').innerText = "กำลังเชื่อมต่อห้องประมูล...";
+                return;
+            }
+
+            const isSold = roomState.auctionStatus === "sold";
+            const showSpecs = isSold;
+
+            document.getElementById('lot-number').innerText = lot.lotNumber;
+            document.getElementById('ball-label').innerText = lot.ball.name;
+            document.getElementById('hud-nickname').innerText = lot.nickname;
+
+            const cluesBanner = document.getElementById('mystery-clues-banner');
+            cluesBanner.classList.toggle('hidden', isSold);
+            document.getElementById('clue-bst').innerText = `BST ${lot.pokemon.bst}`;
+            document.getElementById('clue-size').innerText = lot.pokemon.size;
+            document.getElementById('clue-origin').innerText = lot.pokemon.origin;
+            document.getElementById('clue-trait').innerText = lot.pokemon.trait;
+
+            const imgEl = document.getElementById('lot-image');
+            imgEl.onerror = function () {
+                if (!this.dataset.fallbackTried) {
+                    this.dataset.fallbackTried = "1";
+                    this.src = this.src.replace('https://raw.githubusercontent.com/PokeAPI/sprites/master', 'https://cdn.jsdelivr.net/gh/PokeAPI/sprites@master');
+                } else if (!this.dataset.svgFallback) {
+                    this.dataset.svgFallback = "1";
+                    this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M 10 50 A 40 40 0 0 1 90 50 Z' fill='%23ef4444'/%3E%3Cpath d='M 10 50 A 40 40 0 0 0 90 50 Z' fill='%23ffffff'/%3E%3Crect x='10' y='46' width='80' height='8' fill='%231e293b'/%3E%3Ccircle cx='50' cy='50' r='14' fill='%231e293b'/%3E%3Ccircle cx='50' cy='50' r='9' fill='%23ffffff' stroke='%2394a3b8' stroke-width='2'/%3E%3Ccircle cx='50' cy='50' r='4' fill='%23cbd5e1'/%3E%3Cellipse cx='35' cy='30' rx='8' ry='4' fill='%23ffffff' opacity='0.5' transform='rotate(-30 35 30)'/%3E%3Ccircle cx='50' cy='50' r='40' fill='none' stroke='%231e293b' stroke-width='4'/%3E%3C/svg%3E";
+                }
+            };
+            if (!isSold) {
+                imgEl.src = lot.ball.sprite;
+                imgEl.style.imageRendering = 'pixelated';
+                document.getElementById('lot-title').innerText = "??? (ซ่อนในบอล)";
+            } else {
+                imgEl.src = lot.pokemon.sprite;
+                imgEl.style.imageRendering = 'auto';
+                document.getElementById('lot-title').innerText = lot.pokemon.name;
+            }
+
+            const movesContainer = document.getElementById('hud-moves-list');
+            if (!showSpecs) {
+                movesContainer.innerHTML = [1, 2, 3, 4].map(() => `<div class="move-pill px-3 py-1 rounded text-xs font-bold text-white/80 mono text-center">???</div>`).join('');
+                document.getElementById('hud-ability').innerText = "★ ???";
+            } else {
+                movesContainer.innerHTML = lot.moveset.map(m => `<div class="${m.isSpecial ? 'move-pill-special' : 'move-pill'} px-3 py-1 rounded text-xs font-bold text-white mono text-center">${m.name}</div>`).join('');
+                document.getElementById('hud-ability').innerText = `★ ${lot.primaryAbility}`;
+            }
+
+            const typesEl = document.getElementById('lot-types');
+            if (!isSold) {
+                typesEl.innerHTML = `<span class="text-xs font-bold bg-black/50 text-slate-300 px-2.5 py-1 rounded-lg">ซ่อนธาตุ</span>`;
+            } else {
+                typesEl.innerHTML = lot.pokemon.types.map(t => `<span class="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-lg">${t}</span>`).join('');
+            }
+
+            const itemImg = document.getElementById('hud-item-img');
+            const itemName = document.getElementById('spec-item');
+            const itemDesc = document.getElementById('hud-item-desc');
+            if (!showSpecs) {
+                itemImg.classList.add('hidden');
+                itemName.innerText = "???";
+                itemDesc.innerText = "";
+            } else {
+                itemImg.src = lot.heldItemObj.sprite;
+                itemImg.classList.remove('hidden');
+                itemName.innerText = lot.heldItemObj.name;
+                itemDesc.innerText = lot.heldItemObj.desc;
+            }
+
+            document.getElementById('current-price').innerText = roomState.currentBid.toLocaleString();
+            const leaderBadge = document.getElementById('leader-badge');
+            if (roomState.currentLeaderIndex !== null && roomState.players[roomState.currentLeaderIndex]) {
+                leaderBadge.innerText = roomState.players[roomState.currentLeaderIndex].name;
+            } else {
+                leaderBadge.innerText = "ยังไม่มี";
+            }
+
+            const timerBadge = document.getElementById('timer-badge');
+            if (roomState.auctionStatus === "countdown") {
+                timerBadge.classList.remove('hidden');
+                timerBadge.innerText = `⏱️ ${roomState.countdownSeconds}s`;
+            } else {
+                timerBadge.classList.add('hidden');
+            }
+
+            document.getElementById('active-host-controls').classList.toggle('hidden', isSold);
+            document.getElementById('sold-host-controls').classList.toggle('hidden', !isSold);
+
+        }
+
+        function renderPlayerCards() {
+            const leftCol = document.getElementById('left-players-col');
+            const rightCol = document.getElementById('right-players-col');
+            if (!leftCol || !rightCol) return;
+            leftCol.innerHTML = '';
+            rightCol.innerHTML = '';
+            const isSold = roomState.auctionStatus === "sold";
+
+            roomState.players.forEach((p, idx) => {
+                const isLeading = roomState.currentLeaderIndex === idx;
+                const isLeft = idx % 2 === 0;
+                const isMe = p && p.id === myClientId;
+                const card = document.createElement('div');
+
+                if (!p) {
+                    // Empty slot card: No avatar, waiting for real player to join
+                    card.className = `rounded-3xl p-4 bg-slate-900/40 border-2 border-dashed border-slate-800/80 hover:border-amber-500/50 hover:bg-slate-900/70 transition cursor-pointer flex flex-col justify-between items-center text-center min-h-[175px] group`;
+                    card.onclick = () => window.openJoinModal(idx);
+                    card.innerHTML = `
+                        <div class="w-full flex justify-between items-center text-[11px] text-slate-500">
+                            <span class="font-bold text-slate-400">ที่นั่ง #${idx + 1}</span>
+                            <span class="text-slate-600 font-medium">⚪ ที่นั่งว่าง</span>
+                        </div>
+                        <div class="my-2 flex flex-col items-center gap-1.5">
+                            <div class="w-12 h-12 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-slate-400 group-hover:text-amber-400 group-hover:scale-110 transition shadow">
+                                <i class="fa-solid fa-user-plus text-base"></i>
+                            </div>
+                            <span class="text-xs font-bold text-slate-300 group-hover:text-amber-300 transition">กดเพื่อเข้าร่วมที่นั่ง</span>
+                            <span class="text-[10px] text-slate-500">หรือเพิ่มบอททดสอบ</span>
+                        </div>
+                        <div class="w-full pt-1 border-t border-slate-800/60 text-[11px] text-slate-500 font-mono">
+                            เงินเริ่มต้น ₽ 50,000
+                        </div>
+                    `;
+                } else {
+                    // Occupied slot: Shows avatar (ไอค่อนหน้าคน), name, and green online status badge!
+                    let slots = '';
+                    for (let s = 0; s < 6; s++) {
+                        const m = p.team ? p.team[s] : null;
+                        if (m) {
+                            slots += `<button onclick="inspectTeamMember(${idx}, ${s})" class="w-9 h-8 rounded-lg bg-slate-950 border border-slate-600 p-0.5 flex items-center justify-center hover:border-amber-400 transition"><img src="${m.pokemon.sprite}" class="w-full h-full object-contain"></button>`;
+                        } else {
+                            slots += `<div class="w-9 h-8 rounded-lg bg-slate-700/40 border border-slate-600/40"></div>`;
+                        }
+                    }
+
+                    card.className = `rounded-3xl p-3.5 bg-slate-900 border ${
+                        isLeading ? 'border-amber-400 shadow-xl shadow-amber-500/10' :
+                        isMe ? 'border-indigo-500/80 shadow-lg shadow-indigo-500/10' :
+                        'border-slate-800'
+                    }`;
+
+                    let bidControls = '';
+                    if (isMe) {
+                        bidControls = `
+                            <div class="space-y-1.5 mt-1">
+                                <div class="grid grid-cols-3 gap-1">
+                                    <button onclick="placeBid(${idx}, 2000)" ${isSold ? 'disabled' : ''} class="py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white font-bold rounded text-[11px] active:scale-95 transition">+2k</button>
+                                    <button onclick="placeBid(${idx}, 5000)" ${isSold ? 'disabled' : ''} class="py-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black rounded text-[11px] active:scale-95 transition">+5k</button>
+                                    <button onclick="placeBid(${idx}, 10000)" ${isSold ? 'disabled' : ''} class="py-1 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold rounded text-[11px] active:scale-95 transition">+10k</button>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <div class="relative flex-1">
+                                        <span class="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-[10px]">₽</span>
+                                        <input type="number" id="custom-bid-input-${idx}"
+                                            placeholder="${(roomState.currentBid + 1000).toLocaleString()}"
+                                            onkeydown="if(event.key === 'Enter') placeCustomBid(${idx})"
+                                            ${isSold ? 'disabled' : ''}
+                                            class="w-full bg-slate-900 border border-amber-500/40 focus:border-amber-400 rounded pl-4 pr-1 py-1 text-[11px] text-amber-300 font-bold mono focus:outline-none placeholder:text-slate-600">
+                                    </div>
+                                    <button onclick="placeCustomBid(${idx})" ${isSold ? 'disabled' : ''}
+                                        class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black rounded text-[11px] active:scale-95 transition shrink-0 shadow">
+                                        บิด
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    } else if (p.isBot) {
+                        bidControls = `
+                            <div class="mt-1">
+                                <div class="grid grid-cols-3 gap-1">
+                                    <button onclick="placeBid(${idx}, 2000)" ${isSold ? 'disabled' : ''} class="py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 font-bold rounded text-[11px] active:scale-95 transition">+2k</button>
+                                    <button onclick="placeBid(${idx}, 5000)" ${isSold ? 'disabled' : ''} class="py-1 bg-amber-500/80 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-bold rounded text-[11px] active:scale-95 transition">+5k</button>
+                                    <button onclick="placeBid(${idx}, 10000)" ${isSold ? 'disabled' : ''} class="py-1 bg-rose-600/80 hover:bg-rose-500 disabled:opacity-40 text-white font-bold rounded text-[11px] active:scale-95 transition">+10k</button>
+                                </div>
+                                <div class="text-[9px] text-slate-500 text-center mt-1">🤖 บอททดสอบ</div>
+                            </div>
+                        `;
+                    } else {
+                        bidControls = `
+                            <div class="py-2.5 px-2 text-center text-[10px] text-slate-500 font-medium bg-slate-950/80 rounded-xl border border-slate-800/80 flex flex-col items-center justify-center gap-0.5 mt-1">
+                                <i class="fa-solid fa-shield-halved text-xs text-slate-600"></i>
+                                <span>ที่นั่งของผู้เล่นท่านนี้</span>
+                                <span class="text-[9px] text-slate-600">(คุณกดบิดแทนไม่ได้)</span>
+                            </div>
+                        `;
+                    }
+
+                    card.innerHTML = `
+                        <div class="flex items-stretch gap-2.5">
+                            <div class="flex-1 bg-slate-950 p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                                <div class="flex items-center justify-between gap-1">
+                                    <div class="flex items-center gap-1 min-w-0">
+                                        <div class="font-bold text-white text-xs truncate max-w-[85px]" title="${p.name}">${p.name}</div>
+                                        ${isMe ? '<span class="text-[9px] px-1 py-0.5 rounded bg-indigo-500/30 text-indigo-300 font-bold border border-indigo-500/40">คุณ</span>' : ''}
+                                    </div>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <span class="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                            <span class="text-[9px]">ออนไลน์</span>
+                                        </span>
+                                        <button onclick="leaveRoom(${idx})" class="text-slate-500 hover:text-rose-400 transition text-[10px] p-0.5" title="ออกจากที่นั่ง">
+                                            <i class="fa-solid fa-xmark"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="my-2 flex justify-center">
+                                    <img src="${p.avatar}" class="w-12 h-12 rounded-xl ring-2 ring-white/10 shadow-md">
+                                </div>
+                                ${bidControls}
+                            </div>
+                            <div class="flex flex-col justify-between gap-1">${slots}</div>
+                        </div>
+                        <div class="mt-2 text-center font-bold text-amber-400 mono">₽ ${p.money.toLocaleString()}</div>
+                    `;
+                }
+
+                if (isLeft) leftCol.appendChild(card);
+                else rightCol.appendChild(card);
+            });
+        }
+
+        // Check if room state exists locally for instant initial display
+        const savedInitial = localStorage.getItem(`pokemon_auction_${roomId}`);
+        if (savedInitial) {
+            try {
+                const parsed = JSON.parse(savedInitial);
+                if (parsed.players && parsed.players.some(p => p && p.id === 'p1')) {
+                    parsed.players = [null, null, null, null];
+                }
+                if (parsed.currentLot) {
+                    roomState = parsed;
+                }
+            } catch (e) { }
+        }
+
+        renderUI();
+
+        window.onload = async () => {
+            initRealtimeSync();
+            await loadAllPokemonIndex();
+
+            // Give MQTT retained message and BroadcastChannel 350ms to arrive from cloud
+            setTimeout(async () => {
+                if (!roomState.currentLot && !hasReceivedCloudState) {
+                    await nextAuctionLot();
+                } else {
+                    renderUI();
+                }
+            }, 350);
+        };
+    </script>
+</body>
+
+</html>
