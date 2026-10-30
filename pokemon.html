@@ -275,9 +275,6 @@
                                 <div class="mt-1 text-[11px] text-slate-300 flex items-center gap-1.5 sm:justify-end">
                                     <span>ผู้นำ: <span id="leader-badge"
                                             class="font-bold text-amber-400">ยังไม่มี</span></span>
-                                    <span id="timer-badge"
-                                        class="hidden px-2 py-0.5 rounded bg-rose-600 text-white font-black mono text-xs animate-bounce">⏱️
-                                        5s</span>
                                 </div>
                             </div>
 
@@ -494,7 +491,34 @@
         const HELD_ITEMS = [
             { name: "Focus Sash", desc: "กันตาย 1 ครั้งเมื่อเลือดเต็ม", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/focus-sash.png" },
             { name: "Life Orb", desc: "ตีแรงขึ้น 30% เสียเลือด 10%", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/life-orb.png" },
-            { name: "Leftovers", desc: "ฟื้นเลือด 1/16 ทุกเทิร์น", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/leftovers.png" }
+            { name: "Leftovers", desc: "ฟื้นเลือด 1/16 ทุกเทิร์น", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/leftovers.png" },
+            { name: "Choice Band", desc: "เพิ่มพลังโจมตีกายภาพ 50% ล็อคใช้ท่าเดิม", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/choice-band.png" },
+            { name: "Choice Specs", desc: "เพิ่มพลังโจมตีพิเศษ 50% ล็อคใช้ท่าเดิม", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/choice-specs.png" },
+            { name: "Choice Scarf", desc: "เพิ่มความเร็ว Speed 50% ล็อคใช้ท่าเดิม", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/choice-scarf.png" },
+            { name: "Assault Vest", desc: "เพิ่ม Sp.Def 50% แต่ห้ามใช้ท่าสถานะ", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/assault-vest.png" },
+            { name: "Heavy-Duty Boots", desc: "ป้องกันความเสียหายจากกับดักสนาม", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/heavy-duty-boots.png" },
+            { name: "Rocky Helmet", desc: "สะท้อนดาเมจ 1/6 เมื่อโดนโจมตีกายภาพ", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/rocky-helmet.png" },
+            { name: "Expert Belt", desc: "โจมตีชนะทางธาตุแรงขึ้น 20%", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/expert-belt.png" },
+            { name: "Weakness Policy", desc: "โดนท่าชนะทางแล้วเพิ่ม Atk และ Sp.Atk +2 ขั้น", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/weakness-policy.png" },
+            { name: "Eviolite", desc: "เพิ่ม Def และ Sp.Def 50% ให้ร่างที่ยังไม่สุด", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/eviolite.png" },
+            { name: "Sitrus Berry", desc: "ฟื้นฟูเลือด 25% ทันทีเมื่อเลือดลดต่ำกว่าครึ่ง", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/sitrus-berry.png" },
+            { name: "Lum Berry", desc: "รักษาอาการผิดปกติทางสถานะทันที 1 ครั้ง", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/lum-berry.png" },
+            { name: "White Herb", desc: "ลบล้างการลดค่าสเตตัสทุกชนิดทันที 1 ครั้ง", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/white-herb.png" },
+            { name: "Mental Herb", desc: "รักษาอาการติดขัด เช่น ยั่วยุ หรือบังคับใช้ท่า", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/mental-herb.png" },
+            { name: "Power Herb", desc: "ใช้ท่าที่ต้องชาร์จ 1 เทิร์นได้ทันที 1 ครั้ง", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/power-herb.png" },
+            { name: "Air Balloon", desc: "ลอยตัวหลบหลีกการโจมตีธาตุดินจนกว่าจะโดนตี", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/air-balloon.png" },
+            { name: "Safety Goggles", desc: "ป้องกันสปอร์ ผงแป้ง และสภาพอากาศ", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/safety-goggles.png" },
+            { name: "Loaded Dice", desc: "ทำให้ท่าโจมตีหลายฮิตออกอย่างน้อย 4-5 ครั้ง", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/loaded-dice.png" },
+            { name: "Booster Energy", desc: "ปลุกพลัง Paradox Ability เพิ่มสเตตัสสูงสุด", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/booster-energy.png" },
+            { name: "Covert Cloak", desc: "ป้องกันเอฟเฟกต์แฝงของท่าศัตรู (เช่น ติดชะงัก)", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/covert-cloak.png" },
+            { name: "Clear Amulet", desc: "ป้องกันไม่ให้คู่ต่อสู้ลดค่าสเตตัสลงได้", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/clear-amulet.png" },
+            { name: "Shell Bell", desc: "ฟื้นฟูเลือด 1/8 ของความเสียหายที่โจมตีได้", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/shell-bell.png" },
+            { name: "Scope Lens", desc: "เพิ่มโอกาสติด Critical Hit ในการโจมตี", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/scope-lens.png" },
+            { name: "Black Sludge", desc: "ฟื้นเลือด 1/16 ทุกเทิร์น (ถ้าไม่ใช่ธาตุพิษจะเสียเลือด)", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/black-sludge.png" },
+            { name: "Flame Orb", desc: "ทำให้ผู้ถือติดสถานะเผาไหม้เมื่อสิ้นสุดเทิร์นแรก", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/flame-orb.png" },
+            { name: "Toxic Orb", desc: "ทำให้ผู้ถือติดพิษรุนแรงเมื่อสิ้นสุดเทิร์นแรก", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/toxic-orb.png" },
+            { name: "Light Clay", desc: "เพิ่มระยะเวลาบาเรีย Reflect / Light Screen เป็น 8 เทิร์น", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/light-clay.png" },
+            { name: "Quick Claw", desc: "มีโอกาส 20% ที่จะได้ออกท่าก่อนในเทิร์นนั้น", sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/quick-claw.png" }
         ];
 
         let countdownTimer = null;
@@ -984,18 +1008,26 @@
             window.toast(`ยินดีต้อนรับ ${name} เข้าสู่การประมูล!`, "success");
         };
 
-        window.leaveRoom = function (slotIdx) {
+        window.leaveRoom = function (slotIdx, ev) {
+            if (ev && ev.stopPropagation) ev.stopPropagation();
             const p = roomState.players[slotIdx];
             if (!p) return;
-            if (!confirm(`ต้องการนำ ${p.name} ออกจากที่นั่ง #${slotIdx + 1} หรือไม่?`)) return;
+
+            const pName = p.name;
+            const wasMe = (p.id === myClientId);
 
             roomState.players[slotIdx] = null;
             if (roomState.currentLeaderIndex === slotIdx) {
                 roomState.currentLeaderIndex = null;
             }
 
+            if (wasMe) {
+                sessionStorage.removeItem('pokemon_my_slot');
+            }
+
             publishState();
-            window.toast(`ออกจากที่นั่งเรียบร้อย`, "info");
+            renderUI();
+            window.toast(`นำ ${pName} ออกจากที่นั่งเรียบร้อย`, "info");
         };
 
         function getHostPlayer() {
@@ -1117,7 +1149,6 @@
             const bigTimerCard = document.getElementById('big-timer-card');
             const bigTimerNumber = document.getElementById('big-timer-number');
             const bigTimerLeader = document.getElementById('big-timer-leader');
-            const timerBadge = document.getElementById('timer-badge');
 
             if (roomState.auctionStatus === "countdown" && roomState.auctionEndTime) {
                 const remainingMs = roomState.auctionEndTime - Date.now();
@@ -1136,16 +1167,6 @@
                 if (bigTimerLeader) {
                     const leader = roomState.currentLeaderIndex !== null ? roomState.players[roomState.currentLeaderIndex] : null;
                     bigTimerLeader.innerText = leader ? `ผู้นำ: ${leader.name}` : '';
-                }
-
-                if (timerBadge) {
-                    timerBadge.classList.remove('hidden');
-                    timerBadge.innerText = `⏱️ ${remainingSec}s`;
-                    if (remainingSec <= 3) {
-                        timerBadge.className = 'px-3 py-1.5 rounded-full bg-rose-500/30 border border-rose-500/40 text-rose-400 text-xs font-bold animate-pulse';
-                    } else {
-                        timerBadge.className = 'px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-bold';
-                    }
                 }
 
                 if (remainingMs <= 0) {
@@ -1176,7 +1197,6 @@
                         bigTimerCard.classList.add('hidden');
                     }
                 }
-                if (timerBadge) timerBadge.classList.add('hidden');
             }
         }, 100);
 
@@ -1386,14 +1406,6 @@
                 leaderBadge.innerText = "ยังไม่มี";
             }
 
-            const timerBadge = document.getElementById('timer-badge');
-            if (roomState.auctionStatus === "countdown") {
-                timerBadge.classList.remove('hidden');
-                timerBadge.innerText = `⏱️ ${roomState.countdownSeconds}s`;
-            } else {
-                timerBadge.classList.add('hidden');
-            }
-
             // Host button state configuration
             const host = getHostPlayer();
             const userIsHost = isUserHost();
@@ -1551,8 +1563,9 @@
                                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                                             <span class="text-[9px]">ออนไลน์</span>
                                         </span>
-                                        <button onclick="leaveRoom(${idx})" class="text-slate-500 hover:text-rose-400 transition text-[10px] p-0.5" title="ออกจากที่นั่ง">
-                                            <i class="fa-solid fa-xmark"></i>
+                                        <button onclick="event.stopPropagation(); leaveRoom(${idx}, event)" class="px-1.5 py-0.5 rounded-md bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 hover:text-white border border-rose-500/40 text-[9px] font-bold transition flex items-center gap-1 active:scale-95" title="ลบผู้เล่นนี้ออกจากที่นั่ง">
+                                            <i class="fa-solid fa-user-xmark text-[8px]"></i>
+                                            <span>ลบ</span>
                                         </button>
                                     </div>
                                 </div>
