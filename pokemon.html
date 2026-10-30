@@ -190,14 +190,6 @@
 
                         <!-- LEFT HUD OVERLAY -->
                         <div class="col-span-5 sm:col-span-4 space-y-3 z-20">
-                            <div onclick="editCurrentLotNickname()"
-                                class="inline-flex items-center gap-1.5 border-b border-white/60 pb-0.5 cursor-pointer group"
-                                title="คลิกเพื่อเปลี่ยนชื่อเล่น">
-                                <i class="fa-solid fa-pen text-xs text-white group-hover:text-amber-400"></i>
-                                <span id="hud-nickname"
-                                    class="text-xs sm:text-sm font-bold text-white mono tracking-tight group-hover:text-amber-300">MysteryMon</span>
-                            </div>
-
                             <div>
                                 <div
                                     class="text-xs sm:text-sm font-bold text-white mb-1.5 flex items-center gap-1.5 drop-shadow">
@@ -220,6 +212,18 @@
                                 <div id="hud-sub-abilities" class="text-[10px] text-slate-300/80 leading-tight mt-0.5">
                                 </div>
                             </div>
+
+                            <!-- Big Countdown Timer in Bottom-Left -->
+                            <div id="big-timer-card" class="hidden mt-3 pt-2.5 border-t border-white/15">
+                                <div class="text-[11px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5 drop-shadow">
+                                    <i class="fa-solid fa-stopwatch text-amber-400 text-xs"></i>
+                                    <span>เวลานับถอยหลัง</span>
+                                </div>
+                                <div class="flex items-baseline gap-2 mt-0.5">
+                                    <span id="big-timer-number" class="text-4xl sm:text-5xl font-black mono text-amber-400 drop-shadow-[0_4px_12px_rgba(251,191,36,0.5)] tracking-tight">10s</span>
+                                    <span id="big-timer-leader" class="text-[11px] text-slate-300 font-medium truncate max-w-[120px]"></span>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- CENTER SPRITE & MYSTERY CLUES -->
@@ -235,17 +239,24 @@
                             </div>
 
                             <div id="mystery-clues-banner"
-                                class="w-full mt-2 bg-black/55 backdrop-blur-md border border-white/15 rounded-2xl p-2.5 text-[11px] text-slate-200 space-y-1">
-                                <div class="flex items-center justify-between text-amber-300 font-bold">
-                                    <span><i class="fa-solid fa-magnifying-glass mr-1"></i>คำใบ้ในบอล</span>
-                                    <span id="clue-bst" class="mono">BST ???</span>
+                                class="w-full mt-2 bg-black/65 backdrop-blur-md border border-amber-500/25 rounded-2xl p-3 text-[11px] text-slate-200 space-y-1.5 shadow-xl">
+                                <div class="flex items-center justify-between text-amber-300 font-bold border-b border-white/10 pb-1">
+                                    <span><i class="fa-solid fa-magnifying-glass mr-1.5 text-amber-400"></i>คำใบ้ลักษณะโปเกมอน</span>
+                                    <span class="text-[10px] text-slate-400 font-normal">3 ข้อ</span>
                                 </div>
-                                <div class="flex justify-between text-slate-300">
-                                    <span id="clue-size">-</span>
-                                    <span id="clue-origin" class="text-indigo-300 font-medium">-</span>
-                                </div>
-                                <div id="clue-trait"
-                                    class="text-slate-300/90 text-[10px] leading-snug pt-0.5 border-t border-white/10">-
+                                <div class="space-y-1 pt-0.5 text-xs">
+                                    <div class="flex items-start gap-1.5">
+                                        <span class="text-amber-400 font-bold shrink-0">1.</span>
+                                        <span id="clue-1" class="text-slate-200 leading-tight">-</span>
+                                    </div>
+                                    <div class="flex items-start gap-1.5">
+                                        <span class="text-amber-400 font-bold shrink-0">2.</span>
+                                        <span id="clue-2" class="text-slate-200 leading-tight">-</span>
+                                    </div>
+                                    <div class="flex items-start gap-1.5">
+                                        <span class="text-amber-400 font-bold shrink-0">3.</span>
+                                        <span id="clue-3" class="text-slate-200 leading-tight">-</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -507,7 +518,7 @@
             currentLeaderIndex: null,
             auctionStatus: "bidding",
             auctionEndTime: null,
-            countdownSeconds: 5,
+            countdownSeconds: 10,
             lotCounter: 1,
             lastUpdated: 0
         };
@@ -517,6 +528,96 @@
         function formatPokeString(str) {
             if (!str) return '';
             return str.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+        }
+
+        function generatePokemonClues(poke) {
+            if (poke.clues && Array.isArray(poke.clues) && poke.clues.length >= 3) {
+                return poke.clues;
+            }
+            let heightM = 1.0;
+            let weightKg = 30.0;
+            if (poke.size) {
+                const match = poke.size.match(/([\d.]+)m\s*\/\s*([\d.]+)kg/);
+                if (match) {
+                    heightM = parseFloat(match[1]) || 1.0;
+                    weightKg = parseFloat(match[2]) || 30.0;
+                }
+            } else if (poke.height) {
+                heightM = poke.height / 10;
+                weightKg = (poke.weight || 100) / 10;
+            }
+
+            // 1. Clue 1: Stature & Build (สรีระและขนาดตัว)
+            let buildClue = "";
+            if (heightM < 0.7) {
+                buildClue = `สรีระตัวเล็กกะทัดรัด (สูงประมาณ ${heightM.toFixed(1)}m) คล่องแคล่วว่องไว`;
+            } else if (heightM < 1.6) {
+                buildClue = `สรีระขนาดปานกลาง ร่างกายสมส่วนได้มาตรฐาน (สูงประมาณ ${heightM.toFixed(1)}m)`;
+            } else {
+                buildClue = `สรีระร่างใหญ่โต น่าเกรงขาม (สูง ${heightM.toFixed(1)}m หนัก ${weightKg.toFixed(1)}kg)`;
+            }
+
+            // 2. Clue 2: Combat & Stat Archetype (สไตล์การต่อสู้)
+            let combatClue = "พลังการต่อสู้รอบด้านสมดุล ไร้จุดอ่อนเด่นชัด";
+            if (poke.stats && poke.stats.length > 0) {
+                const statMap = {};
+                poke.stats.forEach(s => {
+                    statMap[s.stat?.name || s.name] = s.base_stat;
+                });
+                const hp = statMap['hp'] || 50;
+                const atk = Math.max(statMap['attack'] || 0, statMap['special-attack'] || 0);
+                const def = Math.max(statMap['defense'] || 0, statMap['special-defense'] || 0);
+                const spd = statMap['speed'] || 50;
+
+                if (spd >= 95 || (spd > atk && spd > def)) {
+                    combatClue = "โดดเด่นด้านความเร็วสูงมาก ชิงจังหวะเปิดฉากโจมตีก่อนเสมอ";
+                } else if (atk >= 100 || (atk > def && atk > hp)) {
+                    combatClue = "เน้นพลังการโจมตีที่รุนแรงเฉียบขาด สร้างความเสียหายหนักหน่วง";
+                } else if (def >= 100 || (def > atk && def > spd)) {
+                    combatClue = "เน้นการตั้งรับและป้องกันที่เหนียวแน่น ต้านทานการโจมตีได้ดีเยี่ยม";
+                } else if (hp >= 100) {
+                    combatClue = "มีพลังชีวิตมหาศาล ยืนระยะรับมือการต่อสู้ยาวนาน";
+                }
+            } else if (poke.name === "Charizard") {
+                combatClue = "เน้นการโฉบโจมตีจากเวหาด้วยพลังเพลิงเผาผลาญรุนแรง";
+            } else if (poke.name === "Blastoise") {
+                combatClue = "เน้นกระดองป้องกันแข็งแกร่งและแรงดันน้ำทำลายล้างเป้าหมาย";
+            } else if (poke.name === "Mewtwo") {
+                combatClue = "ครอบครองพลังจิตทำลายล้างสูงสุดยอด ไร้ผู้เทียมทาน";
+            } else if (poke.name === "Rayquaza") {
+                combatClue = "ทะยานโจมตีด้วยความเร็วเสียงและพลังมังกรเหนือเวหา";
+            }
+
+            // 3. Clue 3: Elemental / Ecological Aura (ออร่าธาตุหรือวิถีธรรมชาติ)
+            const types = (poke.types || []).map(t => typeof t === 'string' ? t : (t.type?.name || ''));
+            const primaryType = types[0] || 'Normal';
+            const typeAuras = {
+                Fire: "แผ่ไอร้อนและพลังงานเปลวเพลิงที่พร้อมปะทุตลอดเวลา",
+                Water: "เชี่ยวชาญการปรับตัวในสายน้ำ เคลื่อนไหวลื่นไหลไร้แรงต้าน",
+                Grass: "เชื่อมโยงกับผืนป่าและพฤกษา ดูดซับพลังธรรมชาติรอบตัว",
+                Electric: "มีกระแสไฟฟ้าสถิตแล่นวนรอบตัว ปล่อยกระแสช็อตได้เฉียบพลัน",
+                Psychic: "ปล่อยคลื่นสมองหรือออร่าพลังจิตพิเศษลึกลับยากหยั่งถึง",
+                Ice: "ไอเย็นยะเยือกแช่แข็งบรรยากาศรอบกาย ทนทานต่ออากาศหนาวสุดขั้ว",
+                Dragon: "สายเลือดมังกรโบราณ เปี่ยมด้วยพลังอำนาจและจิตวิญญาณนักรบ",
+                Ghost: "กายทิพย์ลึกลับ ผลุบโผล่ผ่านมิติและหลอกล่อศัตรูในเงามืด",
+                Dark: "ช่ำชองกลศึกยามค่ำคืน การโจมตีเต็มไปด้วยเล่ห์เหลี่ยม",
+                Steel: "โครงสร้างผิวกายแข็งแกร่งดั่งเหล็กกล้า ป้องกันการกระทบกระทั่ง",
+                Flying: "มีปีกหรือพลังพยุงร่างทะยานขึ้นสู่น่านฟ้าอย่างสง่างาม",
+                Poison: "ขับสารพิษหรือไอระเหยที่มีฤทธิ์กัดกร่อนและเป็นอันตราย",
+                Ground: "ผูกพันกับผืนธรณี ทรงตัวได้อย่างมั่นคงบนพื้นดินและหิน",
+                Rock: "ผิวกายแข็งแกร่งประดุจหินผา ทนทานต่อแรงกระแทก",
+                Bug: "สัญชาตญาณแมลงเฉียบคม ร่างกายมีเกราะไคตินปกป้อง",
+                Normal: "มีความยืดหยุ่นสูง ปรับตัวเข้ากับสถานการณ์ได้หลากหลาย",
+                Fairy: "ครอบครองพลังเวทมนตร์อ่อนโยนแต่ข่มพลังมังกรได้อย่างน่าประหลาด",
+                Fighting: "ฝึกฝนกล้ามเนื้อและเพลงหมัดมวย มุ่งมั่นการต่อสู้ประชิดตัว"
+            };
+
+            let ecoClue = typeAuras[primaryType] || "มีความสามารถเฉพาะตัวที่โดดเด่นในระบบนิเวศ";
+            if (types.length > 1) {
+                ecoClue += ` (ผสานพลัง 2 สายธาตุ)`;
+            }
+
+            return [buildClue, combatClue, ecoClue];
         }
 
         window.loadAllPokemonIndex = async function () {
@@ -553,6 +654,14 @@
                     ? detail.moves.map(m => formatPokeString(m.move.name))
                     : ["Tackle", "Quick Attack", "Swift", "Protect"];
 
+                const clues = generatePokemonClues({
+                    name: detail.name,
+                    types: types,
+                    height: detail.height,
+                    weight: detail.weight,
+                    stats: detail.stats
+                });
+
                 return {
                     id: detail.id,
                     name: detail.name.charAt(0).toUpperCase() + detail.name.slice(1),
@@ -561,7 +670,7 @@
                     tier: tier,
                     size: `${(detail.height / 10).toFixed(1)}m / ${(detail.weight / 10).toFixed(1)}kg`,
                     origin: "Gen 1-9",
-                    trait: `พลังสเตตัสรวม ${bst}`,
+                    clues: clues,
                     sprite: sprite,
                     abilities: abilities,
                     moves: movesPool
@@ -607,6 +716,9 @@
             }
 
             const heldItemObj = window.rand(HELD_ITEMS);
+            if (!poke.clues) {
+                poke.clues = generatePokemonClues(poke);
+            }
 
             return {
                 lotNumber: roomState.lotCounter,
@@ -886,7 +998,33 @@
             window.toast(`ออกจากที่นั่งเรียบร้อย`, "info");
         };
 
+        function getHostPlayer() {
+            if (!roomState || !roomState.players) return null;
+            const realPlayers = roomState.players.filter(p => p && !p.isBot);
+            if (realPlayers.length > 0) {
+                const sorted = [...realPlayers].sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+                return sorted[0];
+            }
+            const anyPlayers = roomState.players.filter(p => p !== null);
+            if (anyPlayers.length > 0) {
+                const sorted = [...anyPlayers].sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+                return sorted[0];
+            }
+            return null;
+        }
+
+        function isUserHost() {
+            const host = getHostPlayer();
+            if (!host) return true; // If no one seated yet, anyone can initiate
+            return host.id === myClientId;
+        }
+
         window.nextAuctionLot = async function () {
+            if (!isUserHost()) {
+                const host = getHostPlayer();
+                window.toast(`เฉพาะหัวห้อง (${host ? host.name : 'ผู้เล่นแรก'}) เท่านั้นที่สามารถกดได้!`, "error");
+                return;
+            }
             const poke = await window.fetchRandomPokemonFromAPI();
             roomState.lotCounter = (roomState.lotCounter || 0) + 1;
             roomState.currentLot = window.buildLotFromPokemon(poke);
@@ -894,7 +1032,7 @@
             roomState.currentLeaderIndex = null;
             roomState.auctionStatus = "bidding";
             roomState.auctionEndTime = null;
-            roomState.countdownSeconds = 5;
+            roomState.countdownSeconds = 10;
 
             publishState();
             window.toast(`เริ่มประมูล LOT #${roomState.lotCounter}!`, "info");
@@ -921,8 +1059,8 @@
             roomState.currentBid = targetBid;
             roomState.currentLeaderIndex = playerIndex;
             roomState.auctionStatus = "countdown";
-            roomState.auctionEndTime = Date.now() + 5000;
-            roomState.countdownSeconds = 5;
+            roomState.auctionEndTime = Date.now() + 10000;
+            roomState.countdownSeconds = 10;
 
             publishState();
             window.toast(`${player.name} เสนอราคา ₽${targetBid.toLocaleString()}!`, "info");
@@ -966,8 +1104,8 @@
             roomState.currentBid = targetBid;
             roomState.currentLeaderIndex = playerIndex;
             roomState.auctionStatus = "countdown";
-            roomState.auctionEndTime = Date.now() + 5000;
-            roomState.countdownSeconds = 5;
+            roomState.auctionEndTime = Date.now() + 10000;
+            roomState.countdownSeconds = 10;
 
             input.value = '';
             publishState();
@@ -976,16 +1114,34 @@
 
         // Synchronized countdown ticker: calculated from absolute roomState.auctionEndTime
         setInterval(() => {
+            const bigTimerCard = document.getElementById('big-timer-card');
+            const bigTimerNumber = document.getElementById('big-timer-number');
+            const bigTimerLeader = document.getElementById('big-timer-leader');
+            const timerBadge = document.getElementById('timer-badge');
+
             if (roomState.auctionStatus === "countdown" && roomState.auctionEndTime) {
                 const remainingMs = roomState.auctionEndTime - Date.now();
                 const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
                 roomState.countdownSeconds = remainingSec;
 
-                const timerBadge = document.getElementById('timer-badge');
+                if (bigTimerCard) bigTimerCard.classList.remove('hidden');
+                if (bigTimerNumber) {
+                    bigTimerNumber.innerText = `${remainingSec}s`;
+                    if (remainingSec <= 3) {
+                        bigTimerNumber.className = 'text-4xl sm:text-5xl font-black mono text-rose-500 drop-shadow-[0_4px_16px_rgba(244,63,94,0.7)] tracking-tight animate-pulse';
+                    } else {
+                        bigTimerNumber.className = 'text-4xl sm:text-5xl font-black mono text-amber-400 drop-shadow-[0_4px_12px_rgba(251,191,36,0.6)] tracking-tight';
+                    }
+                }
+                if (bigTimerLeader) {
+                    const leader = roomState.currentLeaderIndex !== null ? roomState.players[roomState.currentLeaderIndex] : null;
+                    bigTimerLeader.innerText = leader ? `ผู้นำ: ${leader.name}` : '';
+                }
+
                 if (timerBadge) {
                     timerBadge.classList.remove('hidden');
                     timerBadge.innerText = `⏱️ ${remainingSec}s`;
-                    if (remainingSec <= 2) {
+                    if (remainingSec <= 3) {
                         timerBadge.className = 'px-3 py-1.5 rounded-full bg-rose-500/30 border border-rose-500/40 text-rose-400 text-xs font-bold animate-pulse';
                     } else {
                         timerBadge.className = 'px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-bold';
@@ -1007,6 +1163,20 @@
 
                     publishState();
                 }
+            } else {
+                if (bigTimerCard) {
+                    if (roomState.auctionStatus === "bidding") {
+                        bigTimerCard.classList.remove('hidden');
+                        if (bigTimerNumber) {
+                            bigTimerNumber.innerText = "10s";
+                            bigTimerNumber.className = 'text-3xl sm:text-4xl font-black mono text-slate-500/60 tracking-tight';
+                        }
+                        if (bigTimerLeader) bigTimerLeader.innerText = "รอกดบิดแรก...";
+                    } else {
+                        bigTimerCard.classList.add('hidden');
+                    }
+                }
+                if (timerBadge) timerBadge.classList.add('hidden');
             }
         }, 100);
 
@@ -1021,25 +1191,71 @@
             renderUI();
         }
 
-        window.editCurrentLotNickname = function () {
-            if (!roomState.currentLot) return;
-            const nick = prompt("ตั้งชื่อเล่น:", roomState.currentLot.nickname);
-            if (nick) {
-                roomState.currentLot.nickname = nick;
-                saveStateToCloud();
-            }
-        }
-
         window.inspectTeamMember = function (pIdx, sIdx) {
-            const member = roomState.players[pIdx].team[sIdx];
+            const member = roomState.players[pIdx]?.team?.[sIdx];
             if (!member) return;
             document.getElementById('modal-poke-img').src = member.pokemon.sprite;
-            document.getElementById('modal-poke-name').innerText = `${member.nickname} (${member.pokemon.name})`;
+            document.getElementById('modal-poke-name').innerText = `${member.pokemon.name}`;
             document.getElementById('modal-poke-owner').innerText = `ทีมของ ${roomState.players[pIdx].name}`;
+
+            const typesHtml = (member.pokemon.types || []).map(t => {
+                const colors = {
+                    Fire: 'bg-orange-500/25 text-orange-300 border-orange-500/40',
+                    Water: 'bg-blue-500/25 text-blue-300 border-blue-500/40',
+                    Grass: 'bg-emerald-500/25 text-emerald-300 border-emerald-500/40',
+                    Electric: 'bg-yellow-500/25 text-yellow-300 border-yellow-500/40',
+                    Psychic: 'bg-pink-500/25 text-pink-300 border-pink-500/40',
+                    Ice: 'bg-cyan-500/25 text-cyan-300 border-cyan-500/40',
+                    Dragon: 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40',
+                    Dark: 'bg-neutral-600/30 text-neutral-300 border-neutral-500/40',
+                    Fairy: 'bg-rose-400/25 text-rose-200 border-rose-400/40',
+                    Normal: 'bg-slate-500/25 text-slate-300 border-slate-500/40',
+                    Fighting: 'bg-red-600/25 text-red-300 border-red-500/40',
+                    Flying: 'bg-sky-400/25 text-sky-200 border-sky-400/40',
+                    Poison: 'bg-purple-500/25 text-purple-300 border-purple-500/40',
+                    Ground: 'bg-amber-600/25 text-amber-200 border-amber-600/40',
+                    Rock: 'bg-yellow-700/25 text-yellow-300 border-yellow-700/40',
+                    Bug: 'bg-lime-500/25 text-lime-300 border-lime-500/40',
+                    Ghost: 'bg-violet-700/25 text-violet-300 border-violet-600/40',
+                    Steel: 'bg-slate-400/25 text-slate-200 border-slate-400/40'
+                };
+                const cls = colors[t] || 'bg-slate-800 text-slate-300 border-slate-700';
+                return `<span class="px-2 py-0.5 rounded-md border text-[11px] font-bold ${cls}">${t}</span>`;
+            }).join(' ');
+
+            const movesList = member.moveset && member.moveset.length > 0 
+                ? member.moveset.map((m, idx) => `
+                    <div class="p-2 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                        <span class="font-bold text-slate-100 text-xs">${idx + 1}. ${m.name}</span>
+                        ${m.isSpecial ? '<span class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-bold">ท่าพิเศษ</span>' : ''}
+                    </div>
+                `).join('')
+                : '<div class="text-slate-400 text-xs">-</div>';
+
             document.getElementById('modal-poke-body').innerHTML = `
-                <div class="p-3 bg-slate-950 rounded-xl space-y-2">
-                    <div><b>Ability:</b> ${member.primaryAbility}</div>
-                    <div><b>Held Item:</b> ${member.heldItemObj.name} (${member.heldItemObj.desc})</div>
+                <div class="space-y-3">
+                    <div class="flex items-center gap-1.5">${typesHtml}</div>
+                    
+                    <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800/80 space-y-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-slate-400 font-semibold"><i class="fa-solid fa-star text-amber-400 mr-1.5"></i>Ability</span>
+                            <span class="font-bold text-amber-300 text-sm mono">${member.primaryAbility || 'None'}</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs pt-1.5 border-t border-slate-900">
+                            <span class="text-slate-400 font-semibold"><i class="fa-solid fa-gem text-indigo-400 mr-1.5"></i>Held Item</span>
+                            <span class="font-bold text-slate-200">${member.heldItemObj?.name || 'None'} <span class="text-slate-400 text-[10px] font-normal">(${member.heldItemObj?.desc || '-'})</span></span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <div class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-bolt text-amber-400"></i>
+                            <span>ท่าที่ได้รับ (Moveset 4 ท่า)</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            ${movesList}
+                        </div>
+                    </div>
                 </div>
             `;
             document.getElementById('pokemon-modal').classList.replace('hidden', 'flex');
@@ -1099,14 +1315,18 @@
 
             document.getElementById('lot-number').innerText = lot.lotNumber;
             document.getElementById('ball-label').innerText = lot.ball.name;
-            document.getElementById('hud-nickname').innerText = lot.nickname;
 
             const cluesBanner = document.getElementById('mystery-clues-banner');
-            cluesBanner.classList.toggle('hidden', isSold);
-            document.getElementById('clue-bst').innerText = `BST ${lot.pokemon.bst}`;
-            document.getElementById('clue-size').innerText = lot.pokemon.size;
-            document.getElementById('clue-origin').innerText = lot.pokemon.origin;
-            document.getElementById('clue-trait').innerText = lot.pokemon.trait;
+            if (cluesBanner) {
+                cluesBanner.classList.toggle('hidden', isSold);
+            }
+            const clues = lot.pokemon.clues || generatePokemonClues(lot.pokemon);
+            const clue1 = document.getElementById('clue-1');
+            const clue2 = document.getElementById('clue-2');
+            const clue3 = document.getElementById('clue-3');
+            if (clue1) clue1.innerText = clues[0] || '-';
+            if (clue2) clue2.innerText = clues[1] || '-';
+            if (clue3) clue3.innerText = clues[2] || '-';
 
             const imgEl = document.getElementById('lot-image');
             imgEl.onerror = function () {
@@ -1174,9 +1394,47 @@
                 timerBadge.classList.add('hidden');
             }
 
-            document.getElementById('active-host-controls').classList.toggle('hidden', isSold);
-            document.getElementById('sold-host-controls').classList.toggle('hidden', !isSold);
+            // Host button state configuration
+            const host = getHostPlayer();
+            const userIsHost = isUserHost();
+            const btnSkip = document.getElementById('btn-skip-lot');
+            const activeHostControls = document.getElementById('active-host-controls');
+            const soldHostControls = document.getElementById('sold-host-controls');
 
+            if (!isSold) {
+                if (soldHostControls) soldHostControls.classList.add('hidden');
+                if (activeHostControls) activeHostControls.classList.remove('hidden');
+                if (btnSkip) {
+                    if (userIsHost) {
+                        btnSkip.disabled = false;
+                        btnSkip.classList.remove('opacity-50', 'cursor-not-allowed');
+                        btnSkip.innerHTML = `<i class="fa-solid fa-forward text-amber-400"></i><span>ข้ามบอลนี้ (หัวห้อง)</span>`;
+                        btnSkip.title = "คุณคือหัวห้อง สามารถกดข้ามได้";
+                    } else {
+                        btnSkip.disabled = true;
+                        btnSkip.classList.add('opacity-50', 'cursor-not-allowed');
+                        btnSkip.innerHTML = `<i class="fa-solid fa-lock text-slate-500"></i><span>รอหัวห้อง (${host ? host.name : 'ผู้เล่นแรก'}) ข้าม</span>`;
+                        btnSkip.title = "เฉพาะผู้เล่นคนแรก (หัวห้อง) เท่านั้นที่กดข้ามได้";
+                    }
+                }
+            } else {
+                if (activeHostControls) activeHostControls.classList.add('hidden');
+                if (soldHostControls) {
+                    soldHostControls.classList.remove('hidden');
+                    const btnNext = soldHostControls.querySelector('button');
+                    if (btnNext) {
+                        if (userIsHost) {
+                            btnNext.disabled = false;
+                            btnNext.classList.remove('opacity-50', 'cursor-not-allowed');
+                            btnNext.innerHTML = `ต่อไปครับ (หัวห้อง) <i class="fa-solid fa-caret-right ml-1"></i>`;
+                        } else {
+                            btnNext.disabled = true;
+                            btnNext.classList.add('opacity-50', 'cursor-not-allowed');
+                            btnNext.innerHTML = `<i class="fa-solid fa-lock mr-1.5 text-slate-800"></i> รอหัวห้อง (${host ? host.name : 'ผู้เล่นแรก'}) กดตัวถัดไป...`;
+                        }
+                    }
+                }
+            }
         }
 
         function renderPlayerCards() {
@@ -1186,11 +1444,13 @@
             leftCol.innerHTML = '';
             rightCol.innerHTML = '';
             const isSold = roomState.auctionStatus === "sold";
+            const host = getHostPlayer();
 
             roomState.players.forEach((p, idx) => {
                 const isLeading = roomState.currentLeaderIndex === idx;
                 const isLeft = idx % 2 === 0;
                 const isMe = p && p.id === myClientId;
+                const isHost = host && p && host.id === p.id;
                 const card = document.createElement('div');
 
                 if (!p) {
@@ -1214,12 +1474,12 @@
                         </div>
                     `;
                 } else {
-                    // Occupied slot: Shows avatar (ไอค่อนหน้าคน), name, and green online status badge!
+                    // Occupied slot: Shows avatar (ไอค่อนหน้าคน), name, host badge, and online status badge!
                     let slots = '';
                     for (let s = 0; s < 6; s++) {
                         const m = p.team ? p.team[s] : null;
                         if (m) {
-                            slots += `<button onclick="inspectTeamMember(${idx}, ${s})" class="w-9 h-8 rounded-lg bg-slate-950 border border-slate-600 p-0.5 flex items-center justify-center hover:border-amber-400 transition"><img src="${m.pokemon.sprite}" class="w-full h-full object-contain"></button>`;
+                            slots += `<button onclick="inspectTeamMember(${idx}, ${s})" class="w-9 h-8 rounded-lg bg-slate-950 border border-slate-600 p-0.5 flex items-center justify-center hover:border-amber-400 transition" title="กดดูรายละเอียด ${m.pokemon.name}"><img src="${m.pokemon.sprite}" class="w-full h-full object-contain"></button>`;
                         } else {
                             slots += `<div class="w-9 h-8 rounded-lg bg-slate-700/40 border border-slate-600/40"></div>`;
                         }
@@ -1282,8 +1542,9 @@
                             <div class="flex-1 bg-slate-950 p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
                                 <div class="flex items-center justify-between gap-1">
                                     <div class="flex items-center gap-1 min-w-0">
-                                        <div class="font-bold text-white text-xs truncate max-w-[85px]" title="${p.name}">${p.name}</div>
-                                        ${isMe ? '<span class="text-[9px] px-1 py-0.5 rounded bg-indigo-500/30 text-indigo-300 font-bold border border-indigo-500/40">คุณ</span>' : ''}
+                                        <div class="font-bold text-white text-xs truncate max-w-[70px]" title="${p.name}">${p.name}</div>
+                                        ${isHost ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 flex items-center gap-0.5" title="หัวห้อง"><i class="fa-solid fa-crown text-[7px] text-amber-400"></i>หัวห้อง</span>' : ''}
+                                        ${isMe ? '<span class="text-[8px] px-1 py-0.2 rounded bg-indigo-500/30 text-indigo-300 font-bold border border-indigo-500/40">คุณ</span>' : ''}
                                     </div>
                                     <div class="flex items-center gap-1.5 shrink-0">
                                         <span class="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
