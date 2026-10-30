@@ -524,9 +524,10 @@
         let countdownTimer = null;
         let peekSpecsUnlocked = false;
 
-        let myClientId = sessionStorage.getItem('pokemon_my_client_id');
+        let myClientId = localStorage.getItem('pokemon_my_client_id') || sessionStorage.getItem('pokemon_my_client_id');
         if (!myClientId) {
             myClientId = 'user_' + Math.random().toString(36).substring(2, 9);
+            localStorage.setItem('pokemon_my_client_id', myClientId);
             sessionStorage.setItem('pokemon_my_client_id', myClientId);
         }
         const mqttTopic = `pokemon_auction_sync/room_${roomId}`;
@@ -789,6 +790,18 @@
             // Adopt if newer or if we didn't have a lot yet
             if (!roomState.lastUpdated || !newState.lastUpdated || newState.lastUpdated >= roomState.lastUpdated || !roomState.currentLot) {
                 const prevStatus = roomState.auctionStatus;
+
+                // Smart merge: protect seated players from being wiped out by empty/stale state
+                if (newState.players && Array.isArray(newState.players)) {
+                    const mySlot = roomState.players.findIndex(p => p && p.id === myClientId);
+                    if (mySlot !== -1 && roomState.players[mySlot]) {
+                        const incomingP = newState.players[mySlot];
+                        if (!incomingP) {
+                            newState.players[mySlot] = roomState.players[mySlot];
+                        }
+                    }
+                }
+
                 roomState = newState;
                 hasReceivedCloudState = true;
                 try {
@@ -828,11 +841,13 @@
             // Cloud MQTT Connection (EMQX WebSockets)
             if (typeof mqtt !== 'undefined') {
                 try {
+                    const uniqueClientId = 'poke_' + myClientId + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
                     mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-                        clientId: 'poke_' + myClientId + '_' + Math.random().toString(36).substring(2, 6),
+                        clientId: uniqueClientId,
                         clean: true,
-                        connectTimeout: 7000,
-                        reconnectPeriod: 2500
+                        connectTimeout: 10000,
+                        reconnectPeriod: 2000,
+                        keepalive: 30
                     });
 
                     mqttClient.on('connect', () => {
@@ -841,16 +856,12 @@
                         mqttClient.subscribe(mqttTopic + '/state', { qos: 1 });
                         mqttClient.subscribe(mqttTopic + '/requests', { qos: 0 });
 
-                        // Request current room state from any active peer in this room
+                        // Request current room state from active peers
                         mqttClient.publish(mqttTopic + '/requests', JSON.stringify({
                             type: 'REQUEST_ROOM_STATE',
                             from: myClientId
                         }));
 
-                        // If we already have a currentLot (e.g. from localStorage), broadcast it to help peers
-                        if (roomState.currentLot) {
-                            publishState();
-                        }
                         updateOnlineBadge();
                     });
 
@@ -869,8 +880,8 @@
                             const data = JSON.parse(payload.toString());
                             if (topic.endsWith('/requests')) {
                                 if (data && data.type === 'REQUEST_ROOM_STATE' && data.from !== myClientId) {
-                                    // A peer just joined and needs the room state!
-                                    if (roomState.currentLot) {
+                                    // Respond to newcomer only if we are the host or seated player
+                                    if (roomState.currentLot && (isUserHost() || roomState.players.some(p => p && p.id === myClientId))) {
                                         publishState();
                                     }
                                 }
