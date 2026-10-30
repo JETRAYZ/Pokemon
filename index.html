@@ -138,10 +138,15 @@
                     <i class="fa-solid fa-share-nodes"></i>
                     <span>คัดลอกลิงก์ให้เพื่อน</span>
                 </button>
+                <div id="room-code-tag"
+                    class="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs font-mono text-slate-300 flex items-center gap-1.5 shadow-sm" title="รหัสห้องปัจจุบัน">
+                    <i class="fa-solid fa-hashtag text-amber-400 text-xs"></i>
+                    <span id="room-id-display">ห้อง: ...</span>
+                </div>
                 <div id="online-status-badge"
                     class="px-3 py-1.5 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold flex items-center gap-1.5">
                     <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
-                    <span id="room-id-display">ห้อง: กำลังเชื่อมต่อ...</span>
+                    <span>กำลังเชื่อมต่อ Cloud...</span>
                 </div>
                 <select id="pool-filter" onchange="nextAuctionLot()"
                     class="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs font-medium focus:outline-none focus:border-amber-500">
@@ -907,15 +912,20 @@
         function updateOnlineBadge() {
             const badge = document.getElementById('online-status-badge');
             const dbBadge = document.getElementById('db-count-badge');
+            const roomDisplay = document.getElementById('room-id-display');
+            if (roomDisplay) roomDisplay.innerText = `${roomId}`;
             const onlineCount = roomState.players.filter(p => p !== null).length;
+
+            if (!badge) return;
 
             if (isMqttConnected) {
                 badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> <span class="text-emerald-300 font-bold">🟢 ออนไลน์ (Cloud Live)</span> <span class="text-slate-500">|</span> <span class="text-amber-300 font-bold mono">👥 ${onlineCount}/4 คน</span>`;
                 badge.className = "px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs flex items-center gap-1.5";
                 if (dbBadge) dbBadge.innerText = `คลัง ${ALL_POKEMON_INDEX.length || 1000} ร่าง (ออนไลน์สด)`;
             } else {
-                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-indigo-400"></span> <span class="text-indigo-300 font-bold">🔵 ซิงค์ในเครื่อง (Multi-Tab)</span> <span class="text-slate-500">|</span> <span class="text-amber-300 font-bold mono">👥 ${onlineCount}/4 คน</span>`;
-                badge.className = "px-3 py-1.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-xs flex items-center gap-1.5";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span> <span class="text-rose-300 font-bold">🔴 ออฟไลน์ (Cloud ไม่เชื่อมต่อ)</span> <span class="text-slate-500">|</span> <span class="text-amber-300 font-bold mono">👥 ${onlineCount}/4 คน</span>`;
+                badge.className = "px-3 py-1.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-xs flex items-center gap-1.5 cursor-pointer";
+                badge.title = "คอมพิวเตอร์ของคุณเชื่อมต่อห้องออนไลน์ไม่ได้ กรุณาปิด AdBlock / Brave Shields หรือตรวจ Firewall";
             }
         }
 
@@ -1016,7 +1026,11 @@
 
             closeJoinModal();
             publishState();
-            window.toast(`ยินดีต้อนรับ ${name} เข้าสู่การประมูล!`, "success");
+            if (!isMqttConnected) {
+                window.toast("⚠️ คอมพิวเตอร์ของคุณยังไม่เชื่อมต่อระบบ Cloud (คนอื่นในห้องอาจยังไม่เห็นคุณ กรุณาตรวจ AdBlock/Firewall)", "error");
+            } else {
+                window.toast(`ยินดีต้อนรับ ${name} เข้าสู่การประมูล!`, "success");
+            }
         };
 
         window.leaveRoom = function (slotIdx, ev) {
